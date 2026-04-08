@@ -8,6 +8,7 @@ import json
 import os
 import queue
 import re
+import secrets
 import sys
 import threading
 import time
@@ -16,7 +17,7 @@ from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, render_template, request, stream_with_context
+from flask import Flask, Response, jsonify, render_template, request, send_file, session, stream_with_context
 
 # Add parent directory to path so we can import our modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -30,6 +31,7 @@ from core.ai_analyst import run_ai_analysis
 from report.generator import generate_report
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 # ── Scan state storage ────────────────────────────────────────────────────────
 # In production you'd use Redis/DB; a dict is fine for a portfolio tool
@@ -39,6 +41,15 @@ scans_lock = threading.Lock()
 
 SCANS_FILE = Path(__file__).parent / "scan_history.json"
 MAX_SCANS_IN_MEMORY = 50  # prune oldest completed scans beyond this limit
+
+# ── Session helpers ───────────────────────────────────────────────────────────
+
+def get_session_id():
+    """Return (and create if needed) a stable anonymous session ID for this browser."""
+    if "uid" not in session:
+        session["uid"] = secrets.token_hex(16)
+    return session["uid"]
+
 
 # ── Rate limiting ─────────────────────────────────────────────────────────────
 RATE_LIMIT_WINDOW = 60   # seconds
@@ -89,11 +100,12 @@ def load_history():
     return {}
 
 
-def save_history(scan_id, scan_data):
+def save_history(scan_id, scan_data, session_id):
     history = load_history()
     # Store only serialisable summary (not full raw data)
     history[scan_id] = {
         "id":         scan_id,
+        "session_id": session_id,
         "target":     scan_data.get("target"),
         "mode":       scan_data.get("mode"),
         "started_at": scan_data.get("started_at"),
@@ -115,7 +127,7 @@ def push_event(scan_id, event_type, data):
         q.put({"type": event_type, "data": data})
 
 
-def run_scan_thread(scan_id, target, mode, skip_ai):
+def run_scan_thread(scan_id, target, mode, skip_ai, session_id):
     """Full scan pipeline running in a background thread."""
     scans[scan_id]["status"] = "running"
 
@@ -178,7 +190,7 @@ def run_scan_thread(scan_id, target, mode, skip_ai):
             "subdomains_count": len(aggregated["dns"].get("subdomains", [])),
             "findings_count":   len(ai_analysis.get("key_findings", [])),
         })
-        save_history(scan_id, scans[scan_id])
+        save_history(scan_id, scans[scan_id], session_id)
 
         emit("Scan complete!", status="complete", pct=100)
         push_event(scan_id, "complete", {"scan_id": scan_id})
@@ -194,8 +206,11 @@ def run_scan_thread(scan_id, target, mode, skip_ai):
 
 @app.route("/")
 def index():
+    uid = get_session_id()
     history = load_history()
-    recent = sorted(history.values(), key=lambda x: x.get("started_at", ""), reverse=True)[:10]
+    # Only show scans belonging to this browser session
+    user_scans = [s for s in history.values() if s.get("session_id") == uid]
+    recent = sorted(user_scans, key=lambda x: x.get("started_at", ""), reverse=True)[:10]
     return render_template("index.html", recent_scans=recent)
 
 
@@ -218,6 +233,7 @@ def start_scan():
     if mode not in ("quick", "full"):
         return jsonify({"error": "mode must be 'quick' or 'full'"}), 400
 
+    uid = get_session_id()
     scan_id = str(uuid.uuid4())[:8]
     with scans_lock:
         scan_queues[scan_id] = queue.Queue()
@@ -230,7 +246,7 @@ def start_scan():
         }
 
     _prune_scans()
-    thread = threading.Thread(target=run_scan_thread, args=(scan_id, target, mode, skip_ai), daemon=True)
+    thread = threading.Thread(target=run_scan_thread, args=(scan_id, target, mode, skip_ai, uid), daemon=True)
     thread.start()
 
     return jsonify({"scan_id": scan_id})
@@ -293,6 +309,24 @@ def scan_json(scan_id):
         "aggregated":  scan.get("aggregated"),
         "ai_analysis": scan.get("ai_analysis"),
     })
+
+
+@app.route("/scan/<scan_id>/download")
+def download_report(scan_id):
+    """Download the markdown report for a completed scan."""
+    # Sanitize: scan_id must be hex chars only (matches how we generate them)
+    if not re.match(r"^[0-9a-f]{8}$", scan_id):
+        return "Invalid scan ID", 400
+    report_path = (Path(__file__).parent / "reports" / f"{scan_id}.md").resolve()
+    reports_dir = (Path(__file__).parent / "reports").resolve()
+    # Guard against path traversal
+    if not str(report_path).startswith(str(reports_dir)):
+        return "Forbidden", 403
+    if not report_path.exists():
+        return "Report not found", 404
+    target = scans.get(scan_id, {}).get("target", scan_id)
+    filename = f"specter_{target.replace('.', '_')}_{scan_id}.md"
+    return send_file(report_path, as_attachment=True, download_name=filename, mimetype="text/markdown")
 
 
 if __name__ == "__main__":
