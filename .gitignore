@@ -27,6 +27,7 @@ config.local.*
 # Root-level CLI reports
 *_report.md
 localhost_report.md
+workflow.md
 
 # Web dashboard generated reports and scan history
 web/reports/

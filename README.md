@@ -53,6 +53,9 @@ python web/app.py
 ```
 
 Real-time scan progress via SSE, with a full report view and scan history on completion.
+```bash
+python3 specter-ai.py --target scanme.nmap.org
+```
 
 ---
 
