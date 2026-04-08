@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Specter AI // {{ scan.target }}</title>
+<style>
+  :root {
+    --bg:           #000000;
+    --card-bg:      #140608;
+    --card-bg-hover:#1e0b0f;
+    --card-border:  rgba(204,44,86,0.55);
+    --accent-dark:  #8b001e;
+    --accent-mid:   #cc2c56;
+    --accent-light: #e0486e;
+    --text:         #f0f0f0;
+    --text-muted:   #c4cdd6;
+    --text-hint:    #8e99a8;
+    --sev-critical: #ff4444;
+    --sev-high:     #ff8c00;
+    --sev-medium:   #ffd000;
+    --sev-low:      #3ddc84;
+    --sev-info:     #60a5fa;
+    --mono:         'Monaco', 'Courier New', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 39px,
+        rgba(204,44,86,0.07) 39px,
+        rgba(204,44,86,0.07) 40px
+      ),
+      repeating-linear-gradient(
+        90deg,
+        transparent,
+        transparent 39px,
+        rgba(204,44,86,0.07) 39px,
+        rgba(204,44,86,0.07) 40px
+      );
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 1040px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* ── Header ── */
+  header {
+    border-bottom: 1px solid var(--card-border);
+    padding: 22px 0;
+    margin-bottom: 36px;
+  }
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 18px;
+    color: var(--text);
+    text-decoration: none;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+  .logo span {
+    color: var(--accent-light);
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+  .header-actions { display: flex; gap: 16px; align-items: center; }
+  .btn-sm {
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-hint);
+    border: 1px solid rgba(180,0,30,0.3);
+    padding: 5px 12px;
+    border-radius: 3px;
+    text-decoration: none;
+    transition: all 0.18s ease;
+  }
+  .btn-sm:hover { color: var(--text); border-color: var(--accent-mid); }
+
+  /* ── Hero ── */
+  .hero { margin-bottom: 32px; }
+  .hero-target {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+    color: var(--text);
+  }
+  .hero-meta {
+    display: flex;
+    gap: 20px;
+    flex-wrap: wrap;
+    font-size: 11px;
+    color: var(--text-hint);
+    letter-spacing: 2px;
+  }
+  .hero-meta span { display: flex; align-items: center; gap: 6px; }
+  .hero-meta code { color: var(--accent-light); letter-spacing: 1px; }
+
+  /* ── Risk banner ── */
+  .risk-banner {
+    border-radius: 3px;
+    padding: 18px 22px;
+    margin-bottom: 32px;
+    border: 1px solid;
+  }
+  .risk-banner.critical { background: rgba(255,32,32,0.07);   border-color: rgba(255,32,32,0.3); }
+  .risk-banner.high     { background: rgba(255,107,0,0.07);   border-color: rgba(255,107,0,0.3); }
+  .risk-banner.medium   { background: rgba(255,193,7,0.06);   border-color: rgba(255,193,7,0.25); }
+  .risk-banner.low      { background: rgba(34,197,94,0.06);   border-color: rgba(34,197,94,0.2); }
+  .risk-banner.unknown  { background: rgba(107,114,128,0.06); border-color: rgba(107,114,128,0.2); }
+
+  .risk-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .risk-banner.critical .risk-label { color: var(--sev-critical); }
+  .risk-banner.high     .risk-label { color: var(--sev-high); }
+  .risk-banner.medium   .risk-label { color: var(--sev-medium); }
+  .risk-banner.low      .risk-label { color: var(--sev-low); }
+  .risk-banner.unknown  .risk-label { color: var(--text-hint); }
+
+  .risk-summary { font-size: 13px; line-height: 1.8; color: var(--text-muted); }
+  .attack-surface { margin-top: 8px; font-size: 11px; color: var(--text-hint); letter-spacing: 1px; }
+
+  /* ── Stat row ── */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 3px;
+    padding: 18px 20px;
+    transition: all 0.18s ease;
+  }
+  .stat-card:hover { background: var(--card-bg-hover); }
+  .stat-label {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 10px;
+  }
+  .stat-value {
+    font-size: 30px;
+    font-weight: 700;
+    letter-spacing: 0;
+    line-height: 1;
+  }
+  .stat-sub { font-size: 10px; color: var(--text-hint); margin-top: 6px; letter-spacing: 2px; }
+  .val-critical { color: var(--sev-critical); }
+  .val-high     { color: var(--sev-high); }
+  .val-medium   { color: var(--sev-medium); }
+  .val-low      { color: var(--sev-low); }
+  .val-accent   { color: var(--accent-light); }
+  .val-muted    { color: var(--text-muted); }
+
+  /* ── Layout ── */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 3px;
+    overflow: hidden;
+    margin-bottom: 16px;
+  }
+  .card-header {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--card-border);
+    background: rgba(204,44,86,0.07);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .card-title {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+  .card-meta {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 2px;
+  }
+  .card-body { padding: 18px; }
+
+  /* ── Port table ── */
+  .port-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .port-table th {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    text-align: left;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .port-table td {
+    padding: 9px 10px;
+    border-bottom: 1px solid rgba(204,44,86,0.2);
+  }
+  .port-table tr:last-child td { border-bottom: none; }
+  .port-table tr:hover td { background: rgba(204,44,86,0.10); }
+  .port-num { color: var(--accent-light); font-weight: 700; }
+  .banner-cell {
+    color: var(--text-hint);
+    font-size: 10px;
+    max-width: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ── Tags ── */
+  .tag-list { display: flex; flex-wrap: wrap; gap: 7px; }
+  .tag {
+    font-size: 11px;
+    padding: 3px 9px;
+    border-radius: 3px;
+    background: rgba(30,8,16,0.9);
+    border: 1px solid var(--card-border);
+    color: var(--text-muted);
+    letter-spacing: 1px;
+    transition: all 0.18s ease;
+  }
+  .tag:hover { background: rgba(204,44,86,0.2); color: var(--text); }
+  .tag.critical { background: rgba(255,32,32,0.08);   border-color: rgba(255,32,32,0.3);   color: var(--sev-critical); }
+  .tag.high     { background: rgba(255,107,0,0.08);   border-color: rgba(255,107,0,0.3);   color: var(--sev-high); }
+  .tag.medium   { background: rgba(255,193,7,0.08);   border-color: rgba(255,193,7,0.25);  color: var(--sev-medium); }
+  .tag.low      { background: rgba(34,197,94,0.08);   border-color: rgba(34,197,94,0.2);   color: var(--sev-low); }
+  .tag.tech     { background: rgba(204,44,86,0.08);   border-color: rgba(204,44,86,0.3);   color: var(--accent-light); }
+
+  /* ── Findings ── */
+  .finding {
+    border-left: 2px solid var(--card-border);
+    padding: 13px 16px;
+    margin-bottom: 12px;
+    border-radius: 0 3px 3px 0;
+    background: rgba(30,8,16,0.9);
+    transition: all 0.18s ease;
+  }
+  .finding:last-child { margin-bottom: 0; }
+  .finding:hover { background: rgba(40,12,22,1); }
+  .finding.critical { border-left-color: var(--sev-critical); }
+  .finding.high     { border-left-color: var(--sev-high); }
+  .finding.medium   { border-left-color: var(--sev-medium); }
+  .finding.low      { border-left-color: var(--sev-low); }
+  .finding.info     { border-left-color: var(--sev-info); }
+
+  .finding-title {
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 7px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .sev-badge {
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 1px 6px;
+    border-radius: 2px;
+    font-weight: 700;
+  }
+  .sev-critical { background: rgba(255,32,32,0.15);   color: var(--sev-critical); border: 1px solid rgba(255,32,32,0.3); }
+  .sev-high     { background: rgba(255,107,0,0.12);   color: var(--sev-high);     border: 1px solid rgba(255,107,0,0.3); }
+  .sev-medium   { background: rgba(255,193,7,0.10);   color: var(--sev-medium);   border: 1px solid rgba(255,193,7,0.25); }
+  .sev-low      { background: rgba(34,197,94,0.10);   color: var(--sev-low);      border: 1px solid rgba(34,197,94,0.25); }
+  .sev-info     { background: rgba(96,165,250,0.10);  color: var(--sev-info);     border: 1px solid rgba(96,165,250,0.25); }
+  .sev-unknown  { background: rgba(107,114,128,0.10); color: var(--text-hint);    border: 1px solid rgba(107,114,128,0.2); }
+
+  .finding-desc     { font-size: 12px; color: var(--text-muted); line-height: 1.8; }
+  .finding-evidence {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 8px;
+    padding: 7px 10px;
+    background: rgba(0,0,0,0.5);
+    border-left: 2px solid rgba(204,44,86,0.4);
+    border-radius: 2px;
+    letter-spacing: 1px;
+  }
+
+  /* ── Next steps ── */
+  .step {
+    display: flex;
+    gap: 14px;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(180,0,30,0.15);
+    align-items: flex-start;
+    transition: background 0.18s ease;
+  }
+  .step:last-child { border-bottom: none; }
+  .step:hover { background: rgba(204,44,86,0.10); }
+  .step-num {
+    width: 26px; height: 26px;
+    border-radius: 3px;
+    background: rgba(204,44,86,0.22);
+    border: 1px solid var(--card-border);
+    color: var(--accent-light);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .step-content { flex: 1; }
+  .step-title {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .step-detail { font-size: 11px; color: var(--text-muted); line-height: 1.8; }
+  .step-tool {
+    display: inline-block;
+    margin-top: 8px;
+    font-size: 10px;
+    letter-spacing: 1px;
+    background: rgba(30,8,16,0.9);
+    border: 1px solid var(--card-border);
+    padding: 3px 9px;
+    border-radius: 2px;
+    color: var(--text-muted);
+  }
+  .pri-immediate { background: rgba(255,32,32,0.12);  color: var(--sev-critical); border: 1px solid rgba(255,32,32,0.3); }
+  .pri-high      { background: rgba(255,107,0,0.10);  color: var(--sev-high);     border: 1px solid rgba(255,107,0,0.3); }
+  .pri-medium    { background: rgba(255,193,7,0.08);  color: var(--sev-medium);   border: 1px solid rgba(255,193,7,0.25); }
+
+  /* ── Key-value list ── */
+  .kv-list { font-size: 12px; }
+  .kv-row {
+    display: flex;
+    gap: 12px;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(204,44,86,0.2);
+    align-items: flex-start;
+  }
+  .kv-row:last-child { border-bottom: none; }
+  .kv-key {
+    color: var(--text-hint);
+    min-width: 130px;
+    flex-shrink: 0;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding-top: 1px;
+  }
+  .kv-val { color: var(--text); word-break: break-all; letter-spacing: 1px; }
+
+  /* ── Header checks ── */
+  .header-check {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 0;
+    font-size: 11px;
+    border-bottom: 1px solid rgba(204,44,86,0.18);
+    letter-spacing: 1px;
+  }
+  .header-check:last-child { border-bottom: none; }
+  .chk-ok  { color: var(--sev-low); }
+  .chk-bad { color: var(--sev-critical); }
+
+  /* ── Risk indicator tags ── */
+  .risk-tag {
+    font-size: 10px;
+    padding: 3px 10px;
+    border-radius: 3px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+  .risk-tag.red    { background: rgba(255,32,32,0.10);  color: var(--sev-critical); border: 1px solid rgba(255,32,32,0.3); }
+  .risk-tag.orange { background: rgba(255,107,0,0.10);  color: var(--sev-high);     border: 1px solid rgba(255,107,0,0.3); }
+  .risk-tag.yellow { background: rgba(255,193,7,0.08);  color: var(--sev-medium);   border: 1px solid rgba(255,193,7,0.25); }
+
+  .ssl-sev-critical { color: var(--sev-critical); }
+  .ssl-sev-high     { color: var(--sev-high); }
+  .ssl-sev-medium   { color: var(--sev-medium); }
+  .ssl-sev-low      { color: var(--sev-low); }
+  .ssl-sev-info     { color: var(--text-hint); }
+
+  .empty { color: var(--text-hint); font-size: 11px; letter-spacing: 2px; padding: 10px 0; }
+
+  /* ── Responsive ── */
+  @media (max-width: 700px) {
+    .stat-row { grid-template-columns: 1fr 1fr; }
+    .two-col  { grid-template-columns: 1fr; }
+    .hero-target { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+{% set agg  = scan.aggregated %}
+{% set ai   = scan.ai_analysis %}
+{% set risk = (ai.risk_level or 'unknown') | lower %}
+
+<div class="wrap">
+  <header>
+    <div class="header-inner">
+      <a href="/" class="logo">SPECTER<span>.AI</span></a>
+      <div class="header-actions">
+        <a href="/api/scan/{{ scan.id }}/json" class="btn-sm" target="_blank">↓ JSON</a>
+        <a href="/" class="btn-sm">← Dashboard</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero -->
+  <div class="hero">
+    <div class="hero-target">{{ agg.meta.target }}</div>
+    <div class="hero-meta">
+      <span>// Scan ID: <code>{{ scan.id }}</code></span>
+      <span>// Mode: {{ agg.meta.scan_mode }}</span>
+      <span>// {{ agg.meta.scanned_at }}</span>
+    </div>
+  </div>
+
+  <!-- Risk Banner -->
+  {% if ai and not ai.get('error') and not ai.get('skipped') %}
+  <div class="risk-banner {{ risk }}">
+    <div class="risk-label">Overall Risk — {{ risk | upper }}</div>
+    <div class="risk-summary">{{ ai.executive_summary }}</div>
+    {% if ai.attack_surface %}
+    <div class="attack-surface">// Attack Surface: {{ ai.attack_surface }}</div>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- Stat Cards -->
+  <div class="stat-row">
+    <div class="stat-card">
+      <div class="stat-label">Open Ports</div>
+      <div class="stat-value {% if agg.ports.open_count > 5 %}val-high{% elif agg.ports.open_count > 0 %}val-accent{% else %}val-muted{% endif %}">
+        {{ agg.ports.open_count }}
+      </div>
+      <div class="stat-sub">of {{ agg.ports.ports_scanned }} scanned</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Subdomains</div>
+      <div class="stat-value val-accent">{{ agg.dns.subdomains | length }}</div>
+      <div class="stat-sub">discovered</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Missing Headers</div>
+      <div class="stat-value {% if agg.http.security_headers_missing | length > 5 %}val-medium{% else %}val-muted{% endif %}">
+        {{ agg.http.security_headers_missing | length }}
+      </div>
+      <div class="stat-sub">security headers</div>
+    </div>
+    <div class="stat-card">
+      {% set ssl_count = agg.ssl.findings | length %}
+      <div class="stat-label">SSL Findings</div>
+      <div class="stat-value {% if ssl_count > 0 %}val-critical{% else %}val-low{% endif %}">{{ ssl_count }}</div>
+      <div class="stat-sub">issues found</div>
+    </div>
+  </div>
+
+  <!-- AI Findings -->
+  {% if ai and ai.key_findings %}
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">// AI Key Findings</span>
+      <span class="card-meta">{{ ai.key_findings | length }} finding(s)</span>
+    </div>
+    <div class="card-body">
+      {% for f in ai.key_findings %}
+      {% set sev = (f.severity or 'info') | lower %}
+      <div class="finding {{ sev }}">
+        <div class="finding-title">
+          {{ f.title }}
+          <span class="sev-badge sev-{{ sev }}">{{ sev }}</span>
+        </div>
+        <div class="finding-desc">{{ f.description }}</div>
+        {% if f.evidence %}
+        <div class="finding-evidence">// Evidence: {{ f.evidence }}</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Next Steps -->
+  {% if ai and ai.next_steps %}
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">// Recommended Next Steps</span>
+    </div>
+    {% for step in ai.next_steps %}
+    {% set pri = (step.priority or 'medium') | lower %}
+    <div class="step">
+      <div class="step-num">{{ loop.index }}</div>
+      <div class="step-content">
+        <div class="step-title">
+          {{ step.step }}
+          <span class="sev-badge pri-{{ pri }}">{{ pri }}</span>
+        </div>
+        <div class="step-detail">{{ step.detail }}</div>
+        {% if step.tool_suggestion %}
+        <span class="step-tool">// Tool: {{ step.tool_suggestion }}</span>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Ports + HTTP two-col -->
+  <div class="two-col">
+    <!-- Open Ports -->
+    <div class="card" style="margin-bottom:0">
+      <div class="card-header">
+        <span class="card-title">// Open Ports</span>
+        <span class="card-meta">{{ agg.ports.scan_time_s }}s scan</span>
+      </div>
+      <div class="card-body" style="padding:0">
+        {% if agg.ports.open_ports %}
+        <table class="port-table">
+          <thead>
+            <tr><th>Port</th><th>Service</th><th>Banner</th></tr>
+          </thead>
+          <tbody>
+            {% for p in agg.ports.open_ports %}
+            <tr>
+              <td class="port-num">{{ p.port }}</td>
+              <td>{{ p.service }}</td>
+              <td class="banner-cell" title="{{ p.banner or '' }}">{{ (p.banner or '—')[:55] }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="empty" style="padding:18px">No open ports found.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Tech + Headers -->
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="card" style="margin-bottom:0">
+        <div class="card-header"><span class="card-title">// Tech Stack</span></div>
+        <div class="card-body">
+          {% if agg.http.technologies %}
+          <div class="tag-list">
+            {% for t in agg.http.technologies | sort %}
+            <span class="tag tech">{{ t }}</span>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if agg.http.server_headers %}
+          <div style="margin-top:14px">
+            {% for k, v in agg.http.server_headers.items() %}
+            <div class="header-check">
+              <span style="color:var(--text-hint);font-size:10px;min-width:110px;letter-spacing:1px">{{ k }}</span>
+              <span style="color:var(--text-muted);font-size:11px">{{ v[:55] }}</span>
+            </div>
+            {% endfor %}
+          </div>
+          {% endif %}
+          {% if not agg.http.technologies and not agg.http.server_headers %}
+          <div class="empty">No tech detected.</div>
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:0">
+        <div class="card-header"><span class="card-title">// Security Headers</span></div>
+        <div class="card-body" style="padding:12px 18px">
+          {% for h in agg.http.security_headers_present %}
+          <div class="header-check"><span class="chk-ok">✓</span><span>{{ h }}</span></div>
+          {% endfor %}
+          {% for h in agg.http.security_headers_missing %}
+          <div class="header-check"><span class="chk-bad">✗</span><span style="color:var(--text-muted)">{{ h }}</span></div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DNS + SSL two-col -->
+  <div class="two-col" style="margin-top:16px">
+    <!-- DNS / WHOIS -->
+    <div class="card" style="margin-bottom:0">
+      <div class="card-header"><span class="card-title">// DNS / WHOIS</span></div>
+      <div class="card-body">
+        <div class="kv-list">
+          <div class="kv-row">
+            <span class="kv-key">IP(s)</span>
+            <span class="kv-val">{{ agg.dns.ip_addresses | join(', ') or '—' }}</span>
+          </div>
+          {% if agg.dns.whois and not agg.dns.whois.get('error') %}
+          {% set w = agg.dns.whois %}
+          <div class="kv-row"><span class="kv-key">Registrar</span><span class="kv-val">{{ w.registrar or '—' }}</span></div>
+          <div class="kv-row"><span class="kv-key">Org</span><span class="kv-val">{{ w.org or '—' }}</span></div>
+          <div class="kv-row"><span class="kv-key">Created</span><span class="kv-val">{{ w.created or '—' }}</span></div>
+          <div class="kv-row"><span class="kv-key">Expires</span><span class="kv-val">{{ w.expires or '—' }}</span></div>
+          <div class="kv-row"><span class="kv-key">Country</span><span class="kv-val">{{ w.country or '—' }}</span></div>
+          {% endif %}
+        </div>
+        {% if agg.dns.subdomains %}
+        <div style="margin-top:16px">
+          <div style="font-size:10px;color:var(--text-hint);letter-spacing:3px;text-transform:uppercase;margin-bottom:10px">
+            Subdomains ({{ agg.dns.subdomains | length }})
+          </div>
+          <div class="tag-list">
+            {% for s in agg.dns.subdomains %}
+            <span class="tag" title="{{ s.ips | join(', ') if s.ips else '' }}">{{ s.subdomain }}</span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- SSL / TLS -->
+    <div class="card" style="margin-bottom:0">
+      <div class="card-header"><span class="card-title">// SSL / TLS</span></div>
+      <div class="card-body">
+        {% set cert = agg.ssl.primary_cert %}
+        {% if cert %}
+        <div class="kv-list">
+          <div class="kv-row"><span class="kv-key">Subject CN</span><span class="kv-val">{{ cert.subject.common_name or '—' }}</span></div>
+          <div class="kv-row"><span class="kv-key">Issuer</span><span class="kv-val">{{ cert.issuer.org or cert.issuer.common_name or '—' }}</span></div>
+          <div class="kv-row"><span class="kv-key">Protocol</span><span class="kv-val">{{ cert.protocol or '—' }}</span></div>
+          <div class="kv-row"><span class="kv-key">Cipher</span><span class="kv-val" style="font-size:10px">{{ cert.cipher or '—' }}</span></div>
+          <div class="kv-row"><span class="kv-key">Key Bits</span><span class="kv-val">{{ cert.key_bits or '—' }}</span></div>
+          <div class="kv-row">
+            <span class="kv-key">Expiry</span>
+            <span class="kv-val {% if cert.is_expired %}val-critical{% elif cert.expiring_soon %}val-medium{% else %}val-low{% endif %}">
+              {{ cert.not_after }}
+              {% if cert.is_expired %} — EXPIRED
+              {% elif cert.expiring_soon %} — {{ cert.days_until_expiry }}d left
+              {% else %} ({{ cert.days_until_expiry }}d){% endif %}
+            </span>
+          </div>
+          <div class="kv-row">
+            <span class="kv-key">Self-Signed</span>
+            <span class="kv-val {% if cert.self_signed %}val-medium{% else %}val-low{% endif %}">
+              {{ 'Yes' if cert.self_signed else 'No' }}
+            </span>
+          </div>
+        </div>
+        {% else %}
+        <div class="empty">No TLS certificate found.</div>
+        {% endif %}
+
+        {% if agg.ssl.findings %}
+        <div style="margin-top:14px">
+          {% for f in agg.ssl.findings %}
+          {% set sev = (f.severity or 'info') | lower %}
+          <div class="header-check">
+            <span class="ssl-sev-{{ sev }}">
+              {% if sev == 'critical' %}✗{% elif sev == 'high' %}!{% else %}△{% endif %}
+            </span>
+            <span style="color:var(--text-muted);font-size:11px">{{ f.finding }}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Risk Indicators -->
+  {% set ri = agg.risk_indicators %}
+  {% if ri.has_rdp or ri.has_telnet or ri.has_smb or ri.has_database_port or ri.has_docker_api or ri.has_kubernetes or ri.has_ftp %}
+  <div class="card" style="margin-top:16px">
+    <div class="card-header"><span class="card-title">// Risk Indicators</span></div>
+    <div class="card-body">
+      <div class="tag-list">
+        {% if ri.has_rdp %}         <span class="risk-tag red">RDP Exposed</span>{% endif %}
+        {% if ri.has_telnet %}      <span class="risk-tag red">Telnet Exposed</span>{% endif %}
+        {% if ri.has_docker_api %}  <span class="risk-tag red">Docker API Exposed</span>{% endif %}
+        {% if ri.has_kubernetes %}  <span class="risk-tag red">Kubernetes Exposed</span>{% endif %}
+        {% if ri.has_smb %}         <span class="risk-tag orange">SMB Exposed</span>{% endif %}
+        {% if ri.has_ftp %}         <span class="risk-tag orange">FTP Exposed</span>{% endif %}
+        {% if ri.has_database_port %}<span class="risk-tag orange">Database Port Exposed</span>{% endif %}
+        {% if ri.missing_hsts %}    <span class="risk-tag yellow">HSTS Missing</span>{% endif %}
+        {% if ri.missing_csp %}     <span class="risk-tag yellow">CSP Missing</span>{% endif %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+</body>
+</html>

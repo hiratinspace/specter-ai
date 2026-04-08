@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Specter AI // Dashboard</title>
+<style>
+  :root {
+    --bg:            #000000;
+    --card-bg:       #140608;
+    --card-bg-hover: #1e0b0f;
+    --card-border:   rgba(204,44,86,0.55);
+    --accent-dark:   #8b001e;
+    --accent-mid:    #cc2c56;
+    --accent-light:  #e0486e;
+    --text:          #f0f0f0;
+    --text-muted:    #c4cdd6;
+    --text-hint:     #8e99a8;
+    --sev-critical:  #ff4444;
+    --sev-high:      #ff8c00;
+    --sev-medium:    #ffd000;
+    --sev-low:       #3ddc84;
+    --mono:          'Monaco', 'Courier New', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Matrix rain canvas */
+  #matrix-rain {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.09;
+    pointer-events: none;
+  }
+
+  .wrap {
+    position: relative;
+    z-index: 1;
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+  }
+
+  /* ── Header ── */
+  header {
+    border-bottom: 1px solid var(--card-border);
+    padding: 22px 0;
+    margin-bottom: 48px;
+  }
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-weight: 700;
+    font-size: 22px;
+    color: var(--text);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+  }
+  .logo span {
+    color: var(--accent-light);
+    font-weight: 700;
+    letter-spacing: 2px;
+  }
+  .tagline {
+    font-size: 9px;
+    color: var(--text-hint);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-top: 5px;
+  }
+  .disclaimer-badge {
+    font-size: 10px;
+    color: var(--sev-medium);
+    border: 1px solid rgba(255,193,7,0.3);
+    padding: 4px 10px;
+    border-radius: 3px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* ── Scan card ── */
+  .scan-card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    padding: 28px 32px;
+    margin-bottom: 48px;
+    position: relative;
+    overflow: hidden;
+  }
+  .scan-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent-mid), transparent 70%);
+  }
+  .card-label {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 22px;
+  }
+  .form-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto auto;
+    gap: 12px;
+    align-items: end;
+  }
+  .field { display: flex; flex-direction: column; gap: 7px; }
+  .field label {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+
+  input[type="text"], select {
+    background: rgba(20,6,8,0.9);
+    border: 1px solid var(--card-border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+    padding: 10px 14px;
+    border-radius: 3px;
+    outline: none;
+    transition: all 0.18s ease;
+    width: 100%;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+  input[type="text"]:focus,
+  select:focus { border-color: var(--accent-light); background: rgba(204,44,86,0.14); }
+  input[type="text"]::placeholder { color: var(--text-hint); }
+  select option { background: #0f0306; color: var(--text); }
+
+  .toggle-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+  }
+  .toggle-wrap > span {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+  }
+  .toggle-ai {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+    padding: 10px 0 10px;
+  }
+  .toggle-ai input { display: none; }
+  .toggle-ai .pip {
+    width: 28px; height: 16px;
+    background: rgba(180,0,30,0.35);
+    border: 1px solid var(--card-border);
+    border-radius: 8px;
+    position: relative;
+    transition: all 0.18s ease;
+    flex-shrink: 0;
+  }
+  .toggle-ai .pip::after {
+    content: '';
+    position: absolute;
+    top: 2px; left: 2px;
+    width: 10px; height: 10px;
+    background: var(--text-hint);
+    border-radius: 50%;
+    transition: all 0.18s ease;
+  }
+  .toggle-ai input:checked + .pip {
+    background: rgba(204,44,86,0.25);
+    border-color: var(--accent-mid);
+  }
+  .toggle-ai input:checked + .pip::after {
+    transform: translateX(12px);
+    background: var(--accent-light);
+  }
+
+  .btn-scan {
+    background: var(--accent-dark);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    padding: 10px 24px;
+    border: 1px solid var(--accent-mid);
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+    align-self: end;
+  }
+  .btn-scan:hover {
+    background: var(--accent-mid);
+    border-color: var(--accent-light);
+  }
+  .btn-scan:active { transform: translateY(1px); }
+  .btn-scan:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  /* ── Section heading ── */
+  .section-heading {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+  .section-heading::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--card-border);
+  }
+
+  /* ── History table ── */
+  .history-table { width: 100%; border-collapse: collapse; }
+  .history-table th {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--card-border);
+  }
+  .history-table td {
+    font-size: 12px;
+    padding: 13px 12px;
+    border-bottom: 1px solid rgba(180,0,30,0.15);
+    vertical-align: middle;
+    letter-spacing: 1px;
+  }
+  .history-table tr:hover td {
+    background: rgba(204,44,86,0.10);
+  }
+  .history-table a {
+    color: var(--accent-light);
+    text-decoration: none;
+    transition: all 0.18s ease;
+  }
+  .history-table a:hover { color: var(--text); }
+
+  /* Risk badges */
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: 700;
+  }
+  .badge-critical { background: rgba(255,32,32,0.12);   color: var(--sev-critical); border: 1px solid rgba(255,32,32,0.3); }
+  .badge-high     { background: rgba(255,107,0,0.12);   color: var(--sev-high);     border: 1px solid rgba(255,107,0,0.3); }
+  .badge-medium   { background: rgba(255,193,7,0.10);   color: var(--sev-medium);   border: 1px solid rgba(255,193,7,0.25); }
+  .badge-low      { background: rgba(34,197,94,0.10);   color: var(--sev-low);      border: 1px solid rgba(34,197,94,0.25); }
+  .badge-unknown  { background: rgba(107,114,128,0.10); color: var(--text-hint);    border: 1px solid rgba(107,114,128,0.25); }
+
+  .stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .dot { width: 5px; height: 5px; border-radius: 50%; }
+  .dot-accent { background: var(--accent-mid); }
+
+  .empty-state {
+    text-align: center;
+    padding: 56px 0;
+    color: var(--text-hint);
+    font-size: 12px;
+    letter-spacing: 1px;
+  }
+  .empty-state .glyph {
+    font-size: 28px;
+    margin-bottom: 14px;
+    opacity: 0.4;
+    display: block;
+  }
+  .empty-state code {
+    color: var(--accent-light);
+    letter-spacing: 1px;
+  }
+
+  /* ── Modal overlay ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.88);
+    z-index: 100;
+    align-items: center;
+    justify-content: center;
+  }
+  .modal-overlay.active { display: flex; }
+  .modal {
+    background: #140608;
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    padding: 32px 36px;
+    width: 520px;
+    max-width: 95vw;
+    position: relative;
+  }
+  .modal::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent-mid), transparent 70%);
+  }
+  .modal-title {
+    font-size: 14px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .modal-target {
+    font-size: 12px;
+    color: var(--accent-light);
+    letter-spacing: 1px;
+    margin-bottom: 24px;
+  }
+
+  .progress-track {
+    height: 3px;
+    background: rgba(204,44,86,0.25);
+    border-radius: 2px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-dark), var(--accent-light));
+    border-radius: 2px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  .log-stream {
+    background: #0a0204;
+    border: 1px solid rgba(204,44,86,0.35);
+    border-radius: 3px;
+    padding: 14px 16px;
+    height: 160px;
+    overflow-y: auto;
+    font-size: 11px;
+    line-height: 1.8;
+    color: var(--text-muted);
+  }
+  .log-stream .log-line { display: flex; gap: 12px; }
+  .log-stream .ts { color: var(--text-hint); flex-shrink: 0; }
+  .log-stream .ok  { color: var(--sev-low); }
+  .log-stream .err { color: var(--sev-critical); }
+  .log-stream .inf { color: var(--accent-light); }
+
+  .spinner {
+    display: inline-block;
+    width: 12px; height: 12px;
+    border: 1px solid rgba(180,0,30,0.3);
+    border-top-color: var(--accent-light);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    vertical-align: middle;
+    margin-right: 8px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Responsive ── */
+  @media (max-width: 640px) {
+    .form-row { grid-template-columns: 1fr; }
+    .btn-scan { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="matrix-rain"></canvas>
+
+<div class="wrap">
+  <header>
+    <div class="header-inner">
+      <div>
+        <div class="logo">SPECTER<span>.AI</span></div>
+        <div class="tagline">Attack Surface Intelligence</div>
+      </div>
+      <div class="disclaimer-badge">⚠ Authorized Use Only</div>
+    </div>
+  </header>
+
+  <!-- Scan Form -->
+  <div class="scan-card">
+    <div class="card-label">// New Scan</div>
+    <div class="form-row">
+      <div class="field">
+        <label>Target</label>
+        <input type="text" id="target-input" placeholder="example.com or 192.168.1.1" autocomplete="off" spellcheck="false">
+      </div>
+      <div class="field">
+        <label>Mode</label>
+        <select id="mode-select">
+          <option value="quick">Quick — 20 ports</option>
+          <option value="full">Full — 1000 ports</option>
+        </select>
+      </div>
+      <div class="toggle-wrap">
+        <span>AI Analysis</span>
+        <label class="toggle-ai">
+          <input type="checkbox" id="ai-toggle" checked>
+          <span class="pip"></span>
+          <span id="ai-toggle-label">Enabled</span>
+        </label>
+      </div>
+      <button class="btn-scan" id="scan-btn" onclick="startScan()">▶ Scan</button>
+    </div>
+  </div>
+
+  <!-- Scan History -->
+  <div class="section-heading">// Scan History</div>
+  {% if recent_scans %}
+  <table class="history-table">
+    <thead>
+      <tr>
+        <th>Target</th>
+        <th>Risk</th>
+        <th>Mode</th>
+        <th>Ports</th>
+        <th>Subdomains</th>
+        <th>Date</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for scan in recent_scans %}
+      <tr>
+        <td><a href="/scan/{{ scan.id }}">{{ scan.target }}</a></td>
+        <td><span class="badge badge-{{ scan.risk_level | lower }}">{{ scan.risk_level }}</span></td>
+        <td style="color:var(--text-hint)">{{ scan.mode }}</td>
+        <td>
+          <span class="stat-pill">
+            <span class="dot dot-accent"></span>
+            {{ scan.open_ports }}
+          </span>
+        </td>
+        <td style="color:var(--text-muted)">{{ scan.subdomains }}</td>
+        <td style="color:var(--text-hint);font-size:11px">{{ scan.started_at[:10] if scan.started_at else '—' }}</td>
+        <td><a href="/scan/{{ scan.id }}" style="color:var(--text-hint);font-size:11px;letter-spacing:2px">VIEW →</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    <span class="glyph">▣</span>
+    No scans yet — enter a target above to begin.
+    <div style="margin-top:10px;font-size:11px;letter-spacing:1px">
+      Try <code>scanme.nmap.org</code> for a legal test target.
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Progress Modal -->
+<div class="modal-overlay" id="modal">
+  <div class="modal">
+    <div class="modal-title"><span class="spinner" id="modal-spinner"></span>Scanning...</div>
+    <div class="modal-target" id="modal-target"></div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress-fill"></div>
+    </div>
+    <div class="log-stream" id="log-stream"></div>
+  </div>
+</div>
+
+<script>
+// ── Matrix rain ──────────────────────────────────────────────────────────────
+(function() {
+  const canvas = document.getElementById('matrix-rain');
+  const ctx = canvas.getContext('2d');
+  const chars = '01アイウエオカキクサシスタチツナニヌハヒフマミムラリル';
+  let cols, drops;
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols  = Math.floor(canvas.width / 18);
+    drops = Array(cols).fill(1);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  setInterval(() => {
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '13px Monaco, Courier New, monospace';
+    for (let i = 0; i < drops.length; i++) {
+      ctx.fillStyle = Math.random() > 0.6 ? '#8b001e' : '#cc0033';
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(ch, i * 18, drops[i] * 18);
+      if (drops[i] * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }, 55);
+})();
+
+// ── Scan logic ───────────────────────────────────────────────────────────────
+function ts() { return new Date().toTimeString().slice(0, 8); }
+
+function appendLog(msg, cls = '') {
+  const log  = document.getElementById('log-stream');
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="ts">${ts()}</span><span class="${cls}">${msg}</span>`;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+function setProgress(pct) {
+  document.getElementById('progress-fill').style.width = pct + '%';
+}
+
+async function startScan() {
+  const target = document.getElementById('target-input').value.trim();
+  if (!target) { document.getElementById('target-input').focus(); return; }
+
+  const mode   = document.getElementById('mode-select').value;
+  const skipAi = !document.getElementById('ai-toggle').checked;
+
+  document.getElementById('modal-target').textContent = '→ ' + target;
+  document.getElementById('log-stream').innerHTML = '';
+  setProgress(0);
+  document.getElementById('modal').classList.add('active');
+  document.getElementById('scan-btn').disabled = true;
+
+  appendLog('Sending scan request...', 'inf');
+
+  let scanId;
+  try {
+    const res  = await fetch('/api/scan', {
+      method:  'POST',
+      headers: {'Content-Type': 'application/json'},
+      body:    JSON.stringify({ target, mode, skip_ai: skipAi }),
+    });
+    const data = await res.json();
+    if (data.error) { appendLog('Error: ' + data.error, 'err'); document.getElementById('scan-btn').disabled = false; return; }
+    scanId = data.scan_id;
+    appendLog('Scan ID: ' + scanId, 'inf');
+  } catch (e) {
+    appendLog('Failed to start scan: ' + e, 'err');
+    document.getElementById('scan-btn').disabled = false;
+    return;
+  }
+
+  const evtSource = new EventSource('/api/scan/' + scanId + '/stream');
+  evtSource.onmessage = (e) => {
+    const msg = JSON.parse(e.data);
+    if (msg.type === 'ping') return;
+
+    if (msg.type === 'progress') {
+      const d   = msg.data;
+      const cls = d.status === 'error' ? 'err' : d.status === 'done' ? 'ok' : 'inf';
+      appendLog(d.message, cls);
+      if (d.pct !== undefined) setProgress(d.pct);
+    }
+
+    if (msg.type === 'complete') {
+      evtSource.close();
+      document.getElementById('modal-spinner').style.display = 'none';
+      appendLog('Redirecting to report...', 'ok');
+      setTimeout(() => { window.location.href = '/scan/' + scanId; }, 800);
+    }
+
+    if (msg.type === 'error') {
+      evtSource.close();
+      document.getElementById('scan-btn').disabled = false;
+      appendLog('Scan failed — check logs.', 'err');
+    }
+  };
+
+  evtSource.onerror = () => {
+    evtSource.close();
+    appendLog('Connection lost.', 'err');
+    document.getElementById('scan-btn').disabled = false;
+  };
+}
+
+document.getElementById('target-input').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') startScan();
+});
+
+const aiToggle = document.getElementById('ai-toggle');
+const aiLabel  = document.getElementById('ai-toggle-label');
+
+function updateAiLabel() {
+  aiLabel.textContent = aiToggle.checked ? 'Enabled' : 'Disabled';
+  aiLabel.style.color = aiToggle.checked ? 'var(--accent-light)' : 'var(--text-hint)';
+}
+
+aiToggle.addEventListener('change', updateAiLabel);
+updateAiLabel(); // set correct state on page load
+</script>
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Specter AI // Scanning...</title>
+<style>
+  :root {
+    --bg:           #000000;
+    --card-bg:      #140608;
+    --card-border:  rgba(204,44,86,0.55);
+    --accent-dark:  #8b001e;
+    --accent-mid:   #cc2c56;
+    --accent-light: #e0486e;
+    --text:         #f0f0f0;
+    --text-muted:   #c4cdd6;
+    --text-hint:    #8e99a8;
+    --sev-critical: #ff4444;
+    --sev-low:      #3ddc84;
+    --mono:         'Monaco', 'Courier New', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #matrix-rain {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.09;
+    pointer-events: none;
+  }
+
+  .card {
+    position: relative;
+    z-index: 1;
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    padding: 36px 40px;
+    width: 520px;
+    max-width: 95vw;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent-mid), transparent 70%);
+  }
+
+  .card-label {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  .scan-title {
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .scan-sub {
+    font-size: 11px;
+    color: var(--accent-light);
+    letter-spacing: 2px;
+    margin-bottom: 28px;
+    min-height: 16px;
+  }
+
+  .progress-track {
+    height: 3px;
+    background: rgba(204,44,86,0.25);
+    border-radius: 2px;
+    margin-bottom: 22px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-dark), var(--accent-light));
+    border-radius: 2px;
+    transition: width 0.4s ease;
+    width: 0%;
+  }
+
+  .log {
+    background: #0a0204;
+    border: 1px solid rgba(204,44,86,0.35);
+    border-radius: 3px;
+    padding: 14px 16px;
+    height: 200px;
+    overflow-y: auto;
+    font-size: 11px;
+    line-height: 1.9;
+    color: var(--text-muted);
+  }
+  .log .line { display: flex; gap: 12px; }
+  .log .ts  { color: var(--text-hint); flex-shrink: 0; }
+  .log .ok  { color: var(--sev-low); }
+  .log .err { color: var(--sev-critical); }
+  .log .inf { color: var(--accent-light); }
+
+  .spinner {
+    display: inline-block;
+    width: 13px; height: 13px;
+    border: 1px solid rgba(180,0,30,0.3);
+    border-top-color: var(--accent-light);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<canvas id="matrix-rain"></canvas>
+
+<div class="card">
+  <div class="card-label">// SPECTER<span style="color:var(--accent-light)">.AI</span></div>
+  <div class="scan-title">
+    <span class="spinner" id="spinner"></span>
+    Scanning target...
+  </div>
+  <div class="scan-sub" id="scan-sub">Initializing modules...</div>
+  <div class="progress-track">
+    <div class="progress-fill" id="fill"></div>
+  </div>
+  <div class="log" id="log"></div>
+</div>
+
+<script>
+// ── Matrix rain ──────────────────────────────────────────────────────────────
+(function() {
+  const canvas = document.getElementById('matrix-rain');
+  const ctx    = canvas.getContext('2d');
+  const chars  = '01アイウエオカキクサシスタチツナニヌハヒフマミムラリル';
+  let cols, drops;
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols  = Math.floor(canvas.width / 18);
+    drops = Array(cols).fill(1);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  setInterval(() => {
+    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '13px Monaco, Courier New, monospace';
+    for (let i = 0; i < drops.length; i++) {
+      ctx.fillStyle = Math.random() > 0.6 ? '#8b001e' : '#cc0033';
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(ch, i * 18, drops[i] * 18);
+      if (drops[i] * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }, 55);
+})();
+
+// ── SSE stream ───────────────────────────────────────────────────────────────
+const scanId = "{{ scan_id }}";
+const log    = document.getElementById('log');
+
+function ts() { return new Date().toTimeString().slice(0, 8); }
+
+function append(msg, cls = '') {
+  const d = document.createElement('div');
+  d.className = 'line';
+  d.innerHTML = `<span class="ts">${ts()}</span><span class="${cls}">${msg}</span>`;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+}
+
+const es = new EventSource('/api/scan/' + scanId + '/stream');
+es.onmessage = (e) => {
+  const msg = JSON.parse(e.data);
+  if (msg.type === 'ping') return;
+
+  if (msg.type === 'progress') {
+    const d   = msg.data;
+    const cls = d.status === 'error' ? 'err' : d.status === 'done' ? 'ok' : 'inf';
+    append(d.message, cls);
+    if (d.pct) document.getElementById('fill').style.width = d.pct + '%';
+    document.getElementById('scan-sub').textContent = d.message;
+  }
+
+  if (msg.type === 'complete') {
+    es.close();
+    append('Scan complete — loading report...', 'ok');
+    setTimeout(() => location.reload(), 800);
+  }
+
+  if (msg.type === 'error') {
+    es.close();
+    append('Scan failed.', 'err');
+    document.getElementById('spinner').style.display = 'none';
+  }
+};
+</script>
+</body>
+</html>
