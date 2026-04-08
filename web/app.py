@@ -330,7 +330,7 @@ def download_report(scan_id):
 
 
 if __name__ == "__main__":
-    print("\n  SPECTER.AI  —  Attack Surface Intelligence")
+    print("\n  SPECTERAI  —  Attack Surface Intelligence")
     print("  ──────────────────────────────────────────")
     print("  Running at: http://localhost:5000\n")
     debug = os.environ.get("FLASK_DEBUG", "0") == "1"

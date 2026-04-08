@@ -48,7 +48,7 @@ python specter-ai.py --target example.com --no-ai   # skip AI analysis
 ### Web Dashboard
 
 ```bash
-python web/app.py
+python3 web/app.py
 # Open http://localhost:5000
 ```
 
