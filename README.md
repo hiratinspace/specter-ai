@@ -4,7 +4,9 @@ Attack Surface Intelligence Platform — recon tool powered by Claude AI.
 
 > **For authorized security testing only.** Do not scan systems you don't own or have explicit written permission to test.
 
-Built with Python and Claude Code (mostly vibe coded).
+Built with Python and Claude Code.
+
+By **Hirat Rahman Rahi** — first released April 8, 2026.
 
 ---
 
