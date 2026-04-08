@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-specter-ai — Attack Surface Intelligence Platform
+SPECTERAI — Attack Surface Intelligence Platform
 ==================================================
 DISCLAIMER: This tool is for AUTHORIZED security testing ONLY.
 Do NOT use against systems you do not own or have explicit written
@@ -22,14 +22,14 @@ from core.ai_analyst import run_ai_analysis
 from report.generator import generate_report
 
 BANNER = r"""
-  ███████╗██████╗ ███████╗ ██████╗████████╗███████╗██████╗
-  ██╔════╝██╔══██╗██╔════╝██╔════╝╚══██╔══╝██╔════╝██╔══██╗
-  ███████╗██████╔╝█████╗  ██║        ██║   █████╗  ██████╔╝
-  ╚════██║██╔═══╝ ██╔══╝  ██║        ██║   ██╔══╝  ██╔══██╗
-  ███████║██║     ███████╗╚██████╗   ██║   ███████╗██║  ██║
-  ╚══════╝╚═╝     ╚══════╝ ╚═════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝
+  ███████╗██████╗ ███████╗ ██████╗████████╗███████╗██████╗  █████╗ ██╗
+  ██╔════╝██╔══██╗██╔════╝██╔════╝╚══██╔══╝██╔════╝██╔══██╗██╔══██╗██║
+  ███████╗██████╔╝█████╗  ██║        ██║   █████╗  ██████╔╝███████║██║
+  ╚════██║██╔═══╝ ██╔══╝  ██║        ██║   ██╔══╝  ██╔══██╗██╔══██║██║
+  ███████║██║     ███████╗╚██████╗   ██║   ███████╗██║  ██║██║  ██║██║
+  ╚══════╝╚═╝     ╚══════╝ ╚═════╝   ╚═╝   ╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝
 
-  ·AI·  ATTACK SURFACE INTELLIGENCE  ·v1.0·
+  ATTACK SURFACE INTELLIGENCE  ·v1.0·
   For authorized security testing only.
 """
 
