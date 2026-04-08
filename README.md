@@ -6,7 +6,7 @@ Attack Surface Intelligence Platform — recon tool powered by Claude AI.
 
 Built with Python and Claude Code.
 
-By **Hirat Rahman Rahi** — first released April 8, 2026.
+By **Hirat Rahman Rahi** - first released April 8, 2026.
 
 ---
 
