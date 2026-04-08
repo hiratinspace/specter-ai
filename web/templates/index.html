@@ -40,7 +40,7 @@
     position: fixed;
     inset: 0;
     z-index: 0;
-    opacity: 0.09;
+    opacity: 0.48;
     pointer-events: none;
   }
 
@@ -521,6 +521,7 @@
 
 <!-- Progress Modal -->
 <div class="modal-overlay" id="modal">
+  <canvas id="modal-rain" style="position:absolute;inset:0;width:100%;height:100%;opacity:0.55;pointer-events:none;"></canvas>
   <div class="modal">
     <div class="modal-title"><span class="spinner" id="modal-spinner"></span>Scanning...</div>
     <div class="modal-target" id="modal-target"></div>
@@ -549,7 +550,7 @@
   window.addEventListener('resize', resize);
 
   setInterval(() => {
-    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.fillStyle = 'rgba(0,0,0,0.04)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.font = '13px Monaco, Courier New, monospace';
     for (let i = 0; i < drops.length; i++) {
@@ -559,7 +560,44 @@
       if (drops[i] * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
       drops[i]++;
     }
-  }, 55);
+  }, 90);
+})();
+
+// ── Modal overlay rain ───────────────────────────────────────────────────────
+(function() {
+  const canvas = document.getElementById('modal-rain');
+  const ctx = canvas.getContext('2d');
+  const chars = '01アイウエオカキクサシスタチツナニヌハヒフマミムラリル';
+  let cols, drops;
+
+  function resize() {
+    canvas.width  = canvas.offsetWidth;
+    canvas.height = canvas.offsetHeight;
+    cols  = Math.floor(canvas.width / 18);
+    drops = Array(cols).fill(1);
+  }
+
+  // Only resize when the modal becomes visible
+  const observer = new MutationObserver(() => {
+    const overlay = document.getElementById('modal');
+    if (overlay.classList.contains('active')) resize();
+  });
+  observer.observe(document.getElementById('modal'), { attributes: true, attributeFilter: ['class'] });
+
+  setInterval(() => {
+    if (!document.getElementById('modal').classList.contains('active')) return;
+    if (!canvas.width) resize();
+    ctx.fillStyle = 'rgba(0,0,0,0.04)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '13px Monaco, Courier New, monospace';
+    for (let i = 0; i < drops.length; i++) {
+      ctx.fillStyle = Math.random() > 0.6 ? '#8b001e' : '#cc0033';
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(ch, i * 18, drops[i] * 18);
+      if (drops[i] * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }, 90);
 })();
 
 // ── Scan logic ───────────────────────────────────────────────────────────────

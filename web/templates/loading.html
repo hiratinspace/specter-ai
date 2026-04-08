@@ -38,7 +38,7 @@
     position: fixed;
     inset: 0;
     z-index: 0;
-    opacity: 0.09;
+    opacity: 0.48;
     pointer-events: none;
   }
 
@@ -165,7 +165,7 @@
   window.addEventListener('resize', resize);
 
   setInterval(() => {
-    ctx.fillStyle = 'rgba(0,0,0,0.06)';
+    ctx.fillStyle = 'rgba(0,0,0,0.04)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     ctx.font = '13px Monaco, Courier New, monospace';
     for (let i = 0; i < drops.length; i++) {
@@ -175,7 +175,7 @@
       if (drops[i] * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
       drops[i]++;
     }
-  }, 55);
+  }, 90);
 })();
 
 // ── SSE stream ───────────────────────────────────────────────────────────────

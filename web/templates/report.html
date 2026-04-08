@@ -34,27 +34,12 @@
     letter-spacing: 1px;
   }
 
-  body::before {
-    content: '';
+  #matrix-rain {
     position: fixed;
     inset: 0;
-    background:
-      repeating-linear-gradient(
-        0deg,
-        transparent,
-        transparent 39px,
-        rgba(204,44,86,0.07) 39px,
-        rgba(204,44,86,0.07) 40px
-      ),
-      repeating-linear-gradient(
-        90deg,
-        transparent,
-        transparent 39px,
-        rgba(204,44,86,0.07) 39px,
-        rgba(204,44,86,0.07) 40px
-      );
-    pointer-events: none;
     z-index: 0;
+    opacity: 0.48;
+    pointer-events: none;
   }
 
   .wrap {
@@ -449,6 +434,8 @@
 {% set ai   = scan.ai_analysis %}
 {% set risk = (ai.risk_level or 'unknown') | lower %}
 
+<canvas id="matrix-rain"></canvas>
+
 <div class="wrap">
   <header>
     <div class="header-inner">
@@ -758,6 +745,37 @@
   <span style="color:rgba(204,44,86,0.4)">|</span>
   <span>Built by <span style="color:var(--accent-light);font-weight:700">REDHEXX</span></span>
 </footer>
+
+<script>
+(function() {
+  const canvas = document.getElementById('matrix-rain');
+  const ctx = canvas.getContext('2d');
+  const chars = '01アイウエオカキクサシスタチツナニヌハヒフマミムラリル';
+  let cols, drops;
+
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols  = Math.floor(canvas.width / 18);
+    drops = Array(cols).fill(1);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  setInterval(() => {
+    ctx.fillStyle = 'rgba(0,0,0,0.04)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '13px Monaco, Courier New, monospace';
+    for (let i = 0; i < drops.length; i++) {
+      ctx.fillStyle = Math.random() > 0.6 ? '#8b001e' : '#cc0033';
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(ch, i * 18, drops[i] * 18);
+      if (drops[i] * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }, 90);
+})();
+</script>
 
 </body>
 </html>
