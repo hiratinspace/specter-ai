@@ -100,7 +100,6 @@
     padding: 28px 32px;
     margin-bottom: 48px;
     position: relative;
-    overflow: hidden;
   }
   .scan-card::before {
     content: '';
@@ -149,6 +148,73 @@
   select:focus { border-color: var(--accent-light); background: rgba(204,44,86,0.14); }
   input[type="text"]::placeholder { color: var(--text-hint); }
   select option { background: #0f0306; color: var(--text); }
+
+  .custom-select-wrap {
+    position: relative;
+    width: 100%;
+    user-select: none;
+  }
+  .custom-select-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(20,6,8,0.9);
+    border: 1px solid var(--card-border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+    padding: 10px 14px;
+    border-radius: 3px;
+    cursor: pointer;
+    transition: all 0.18s ease;
+  }
+  .custom-select-trigger:hover,
+  .custom-select-wrap.open .custom-select-trigger {
+    border-color: var(--accent-light);
+    background: rgba(204,44,86,0.14);
+  }
+  .select-arrow {
+    color: var(--accent-light);
+    font-size: 13px;
+    transition: transform 0.18s ease;
+  }
+  .custom-select-wrap.open .select-arrow {
+    transform: rotate(180deg);
+  }
+  .custom-select-options {
+    display: none;
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; right: 0;
+    background: #140608;
+    border: 1px solid var(--card-border);
+    border-radius: 3px;
+    overflow: hidden;
+    z-index: 200;
+  }
+  .custom-select-wrap.open .custom-select-options {
+    display: block;
+  }
+  .custom-option {
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-bottom: 1px solid rgba(204,44,86,0.15);
+  }
+  .custom-option:last-child { border-bottom: none; }
+  .custom-option:hover {
+    background: rgba(204,44,86,0.12);
+    color: var(--text);
+  }
+  .custom-option.active {
+    color: var(--accent-light);
+    background: rgba(204,44,86,0.08);
+  }
 
   .toggle-wrap {
     display: flex;
@@ -433,10 +499,17 @@
       </div>
       <div class="field">
         <label>Mode</label>
-        <select id="mode-select">
-          <option value="quick">Quick — 20 ports</option>
-          <option value="full">Full — 1000 ports</option>
-        </select>
+        <div class="custom-select-wrap" id="mode-dropdown">
+          <div class="custom-select-trigger" onclick="toggleModeDropdown()">
+            <span id="mode-label">Quick — 20 ports</span>
+            <span class="select-arrow" id="mode-arrow">▾</span>
+          </div>
+          <div class="custom-select-options" id="mode-options">
+            <div class="custom-option active" data-value="quick" onclick="selectMode(this)">Quick — 20 ports</div>
+            <div class="custom-option" data-value="full" onclick="selectMode(this)">Full — 1000 ports</div>
+          </div>
+          <input type="hidden" id="mode-select" value="quick">
+        </div>
       </div>
       <div class="toggle-wrap">
         <span>AI Analysis</span>
@@ -597,6 +670,24 @@
     }
   }, 90);
 })();
+
+// ── Mode dropdown ─────────────────────────────────────────────────────────────
+function toggleModeDropdown() {
+  document.getElementById('mode-dropdown').classList.toggle('open');
+}
+function selectMode(el) {
+  document.querySelectorAll('.custom-option').forEach(o => o.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('mode-label').textContent = el.textContent;
+  document.getElementById('mode-select').value = el.dataset.value;
+  document.getElementById('mode-dropdown').classList.remove('open');
+}
+// Close dropdown when clicking outside
+document.addEventListener('click', (e) => {
+  if (!document.getElementById('mode-dropdown').contains(e.target)) {
+    document.getElementById('mode-dropdown').classList.remove('open');
+  }
+});
 
 // ── Scan logic ───────────────────────────────────────────────────────────────
 function ts() { return new Date().toTimeString().slice(0, 8); }
