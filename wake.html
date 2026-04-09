@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SpecterAI — Waking Up...</title>
+<style>
+  :root {
+    --bg:           #000000;
+    --card-bg:      #140608;
+    --card-border:  rgba(204,44,86,0.55);
+    --accent-dark:  #8b001e;
+    --accent-mid:   #cc2c56;
+    --accent-light: #e0486e;
+    --text:         #f0f0f0;
+    --text-muted:   #c4cdd6;
+    --text-hint:    #8e99a8;
+    --mono:         'Monaco', 'Courier New', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 1px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  #matrix-rain {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    opacity: 0.48;
+    pointer-events: none;
+  }
+
+  .container {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 0 24px;
+  }
+
+  .logo {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: 6px;
+    margin-bottom: 8px;
+  }
+  .logo span {
+    color: var(--accent-light);
+    font-weight: 900;
+  }
+
+  .tagline {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    margin-bottom: 48px;
+  }
+
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 4px;
+    padding: 36px 48px;
+    width: 480px;
+    max-width: 95vw;
+    position: relative;
+    overflow: hidden;
+  }
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, var(--accent-mid), transparent 70%);
+  }
+
+  .status-label {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+  }
+
+  .pulse-ring {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 28px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .pulse-ring::before,
+  .pulse-ring::after {
+    content: '';
+    position: absolute;
+    border-radius: 50%;
+    border: 1px solid var(--accent-mid);
+    animation: pulse 2s ease-out infinite;
+  }
+  .pulse-ring::after { animation-delay: 1s; }
+  @keyframes pulse {
+    0%   { width: 20px; height: 20px; opacity: 1; }
+    100% { width: 64px; height: 64px; opacity: 0; }
+  }
+  .pulse-dot {
+    width: 12px;
+    height: 12px;
+    background: var(--accent-light);
+    border-radius: 50%;
+    box-shadow: 0 0 12px var(--accent-mid);
+    animation: glow 1.4s ease-in-out infinite alternate;
+  }
+  @keyframes glow {
+    from { box-shadow: 0 0 6px var(--accent-dark); }
+    to   { box-shadow: 0 0 18px var(--accent-light); }
+  }
+
+  .progress-track {
+    height: 2px;
+    background: rgba(204,44,86,0.2);
+    border-radius: 2px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent-dark), var(--accent-light));
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.5s ease;
+  }
+
+  .status-text {
+    font-size: 12px;
+    color: var(--text-muted);
+    letter-spacing: 2px;
+    margin-bottom: 6px;
+  }
+  .attempt-text {
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 2px;
+  }
+  .attempt-text span { color: var(--accent-light); }
+
+  footer {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    border-top: 1px solid rgba(204,44,86,0.25);
+    background: rgba(0,0,0,0.92);
+    backdrop-filter: blur(6px);
+    padding: 10px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 20px;
+    font-size: 10px;
+    color: var(--text-hint);
+    letter-spacing: 2px;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="matrix-rain"></canvas>
+
+<div class="container">
+  <div class="logo">Specter<span>AI</span></div>
+  <div class="tagline">Attack Surface Intelligence</div>
+
+  <div class="card">
+    <div class="status-label">// System Status</div>
+    <div class="pulse-ring"><div class="pulse-dot"></div></div>
+    <div class="progress-track">
+      <div class="progress-fill" id="progress"></div>
+    </div>
+    <div class="status-text" id="status-text">Waking up server...</div>
+    <div class="attempt-text">Attempt <span id="attempt">1</span> — please wait</div>
+  </div>
+</div>
+
+<footer>
+  <span>© 2026 Specter<span style="color:var(--accent-light);font-weight:900">AI</span> — All Rights Reserved</span>
+  <span style="color:rgba(204,44,86,0.4)">|</span>
+  <span>Built by <span style="color:var(--accent-light);font-weight:700">redhexx</span></span>
+</footer>
+
+<script>
+// ── Matrix rain ───────────────────────────────────────────────────────────────
+(function() {
+  const canvas = document.getElementById('matrix-rain');
+  const ctx = canvas.getContext('2d');
+  const chars = '01アイウエオカキクサシスタチツナニヌハヒフマミムラリル';
+  let cols, drops;
+  function resize() {
+    canvas.width  = window.innerWidth;
+    canvas.height = window.innerHeight;
+    cols  = Math.floor(canvas.width / 18);
+    drops = Array(cols).fill(1);
+  }
+  resize();
+  window.addEventListener('resize', resize);
+  setInterval(() => {
+    ctx.fillStyle = 'rgba(0,0,0,0.04)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = '13px Monaco, Courier New, monospace';
+    for (let i = 0; i < drops.length; i++) {
+      ctx.fillStyle = Math.random() > 0.6 ? '#8b001e' : '#cc0033';
+      const ch = chars[Math.floor(Math.random() * chars.length)];
+      ctx.fillText(ch, i * 18, drops[i] * 18);
+      if (drops[i] * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+      drops[i]++;
+    }
+  }, 90);
+})();
+
+// ── Wake-up pinger ────────────────────────────────────────────────────────────
+// !! Replace this with your actual Render URL !!
+const APP_URL = 'https://specter-ai-8p3g.onrender.com';
+
+const statusMessages = [
+  'Waking up server...',
+  'Initializing modules...',
+  'Booting intelligence engine...',
+  'Almost there...',
+  'Establishing connection...',
+];
+
+let attempt = 0;
+const MAX_ATTEMPTS = 20;
+const INTERVAL_MS  = 5000;
+
+function ping() {
+  attempt++;
+  document.getElementById('attempt').textContent = attempt;
+  document.getElementById('status-text').textContent =
+    statusMessages[Math.min(attempt - 1, statusMessages.length - 1)];
+  document.getElementById('progress').style.width =
+    Math.min((attempt / MAX_ATTEMPTS) * 100, 95) + '%';
+
+  fetch(APP_URL, { method: 'HEAD', mode: 'no-cors' })
+    .then(() => {
+      document.getElementById('progress').style.width = '100%';
+      document.getElementById('status-text').textContent = 'Online — redirecting...';
+      setTimeout(() => { window.location.href = APP_URL; }, 600);
+    })
+    .catch(() => {
+      if (attempt < MAX_ATTEMPTS) {
+        setTimeout(ping, INTERVAL_MS);
+      } else {
+        document.getElementById('status-text').textContent = 'Taking longer than usual — click to open';
+        document.querySelector('.card').style.cursor = 'pointer';
+        document.querySelector('.card').onclick = () => { window.location.href = APP_URL; };
+      }
+    });
+}
+
+setTimeout(ping, 1000);
+</script>
+</body>
+</html>
