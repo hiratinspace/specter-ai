@@ -2,7 +2,7 @@
 aggregator.py — Combines all module outputs into one structured result dict.
 
 Sample usage:
-    from core.aggregator import aggregate_results
+    from specter_ai.core.aggregator import aggregate_results
     data = aggregate_results("example.com", "quick", module_results)
 """
 

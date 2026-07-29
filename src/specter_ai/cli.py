@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 """
-SPECTERAI — Attack Surface Intelligence Platform
-==================================================
+cli.py — SpecterAI command-line entrypoint
+==============================================
 DISCLAIMER: This tool is for AUTHORIZED security testing ONLY.
 Do NOT use against systems you do not own or have explicit written
 permission to test. Unauthorized scanning is illegal and unethical.
@@ -13,13 +12,13 @@ import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from modules.dns_enum import run_dns_enum
-from modules.port_scan import run_port_scan
-from modules.http_probe import run_http_probe
-from modules.ssl_check import run_ssl_check
-from core.aggregator import aggregate_results
-from core.ai_analyst import run_ai_analysis
-from report.generator import generate_report
+from specter_ai.modules.dns_enum import run_dns_enum
+from specter_ai.modules.port_scan import run_port_scan
+from specter_ai.modules.http_probe import run_http_probe
+from specter_ai.modules.ssl_check import run_ssl_check
+from specter_ai.core.aggregator import aggregate_results
+from specter_ai.core.ai_analyst import run_ai_analysis
+from specter_ai.report.generator import generate_report
 
 BANNER = r"""
   ███████╗██████╗ ███████╗ ██████╗████████╗███████╗██████╗  █████╗ ██╗
@@ -37,7 +36,7 @@ BANNER = r"""
 def parse_args():
     parser = argparse.ArgumentParser(
         description="specter-ai: Attack surface intelligence platform",
-        epilog="Example: python recon.py --target example.com --mode full --output report.md"
+        epilog="Example: specter-ai --target example.com --mode full --output report.md"
     )
     parser.add_argument(
         "--target", "-t",
@@ -141,9 +140,14 @@ def main():
     print()
 
 
-if __name__ == "__main__":
+def run():
+    """Console-script entrypoint (handles Ctrl-C cleanly)."""
     try:
         main()
     except KeyboardInterrupt:
         print("\n\n  [!] Scan interrupted by user.")
         sys.exit(0)
+
+
+if __name__ == "__main__":
+    run()

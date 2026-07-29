@@ -3,7 +3,7 @@ http_probe.py — HTTP Header Analysis & Tech Detection
 Detects server tech, missing security headers, cookies, redirects.
 
 Sample usage:
-    from modules.http_probe import run_http_probe
+    from specter_ai.modules.http_probe import run_http_probe
     results = run_http_probe("example.com")
 """
 

@@ -3,7 +3,7 @@ port_scan.py — TCP Port Scanner with Banner Grabbing
 Scans common ports using raw sockets. Grabs service banners where possible.
 
 Sample usage:
-    from modules.port_scan import run_port_scan
+    from specter_ai.modules.port_scan import run_port_scan
     results = run_port_scan("example.com", mode="quick")
 """
 

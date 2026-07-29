@@ -3,7 +3,7 @@ dns_enum.py — DNS Records & WHOIS Enumeration
 Collects A, MX, TXT, NS records and WHOIS registration info.
 
 Sample usage:
-    from modules.dns_enum import run_dns_enum
+    from specter_ai.modules.dns_enum import run_dns_enum
     results = run_dns_enum("example.com")
 """
 

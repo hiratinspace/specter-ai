@@ -84,13 +84,24 @@ The four modules run concurrently, and their results are merged into one structu
 
 ### CLI
 
+Install once, then run it as a regular command, no cloning required:
+
 ```bash
-pip install -r requirements.txt
+pipx install specter-ai   # or: pip install specter-ai
 export ANTHROPIC_API_KEY=your_key_here
 
-python specter-ai.py --target example.com --mode quick
-python specter-ai.py --target example.com --mode full --output report.md
-python specter-ai.py --target example.com --no-ai   # skip AI analysis
+specter-ai --target example.com --mode quick
+specter-ai --target example.com --mode full --output report.md
+specter-ai --target example.com --no-ai   # skip AI analysis
+```
+
+Running from a source checkout instead of PyPI:
+
+```bash
+pip install -e .
+export ANTHROPIC_API_KEY=your_key_here
+specter-ai --target example.com --mode quick
+# or: python -m specter_ai --target example.com --mode quick
 ```
 
 **Flags**
@@ -104,7 +115,12 @@ python specter-ai.py --target example.com --no-ai   # skip AI analysis
 
 ### Web dashboard
 
+The web dashboard isn't published as a standalone package, so run it from a source checkout:
+
 ```bash
+git clone https://github.com/hiratinspace/specter-ai.git
+cd specter-ai
+pip install -e ".[web]"
 python3 web/app.py
 # Open http://localhost:5000
 ```
@@ -112,7 +128,7 @@ python3 web/app.py
 Real-time scan progress via SSE, with a full report view and scan history on completion. Try it against a legal test target:
 
 ```bash
-python3 specter-ai.py --target scanme.nmap.org
+specter-ai --target scanme.nmap.org
 ```
 
 ---
@@ -131,11 +147,18 @@ python3 specter-ai.py --target scanme.nmap.org
 - Python 3.10+
 - `ANTHROPIC_API_KEY` environment variable (for AI analysis)
 
+Core CLI dependencies (installed automatically via pip/pipx):
+
 ```
 anthropic>=0.25.0
 dnspython>=2.4.0
 python-whois>=0.9.0
 requests>=2.31.0
+```
+
+The web dashboard additionally needs the `web` extra:
+
+```
 flask>=3.0.0
 gunicorn>=21.2.0
 ```
@@ -145,12 +168,13 @@ gunicorn>=21.2.0
 ## Project structure
 
 ```
-specter-ai.py        # CLI entrypoint
-web/app.py           # Flask web dashboard
-modules/             # dns_enum, port_scan, http_probe, ssl_check
-core/                # aggregator, ai_analyst (Claude integration)
-report/              # Markdown report generator
-assets/screenshots/  # README screenshots
+src/specter_ai/       # Installable package (PyPI: specter-ai)
+  cli.py              # CLI entrypoint (console script: specter-ai)
+  modules/            # dns_enum, port_scan, http_probe, ssl_check
+  core/               # aggregator, ai_analyst (Claude integration)
+  report/             # Markdown report generator
+web/app.py            # Flask web dashboard (run from a source checkout)
+assets/screenshots/   # README screenshots
 ```
 
 ---

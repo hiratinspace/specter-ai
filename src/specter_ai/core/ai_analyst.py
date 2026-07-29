@@ -3,7 +3,7 @@ ai_analyst.py — AI-Powered Security Analysis via Claude API
 Sends aggregated recon data to Claude and gets structured findings + recommendations.
 
 Sample usage:
-    from core.ai_analyst import run_ai_analysis
+    from specter_ai.core.ai_analyst import run_ai_analysis
     analysis = run_ai_analysis(aggregated_data)
 """
 

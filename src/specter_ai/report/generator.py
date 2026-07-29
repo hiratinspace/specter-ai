@@ -3,7 +3,7 @@ generator.py — Markdown Pentest Report Generator
 Produces a clean, structured markdown report from aggregated recon + AI analysis.
 
 Sample usage:
-    from report.generator import generate_report
+    from specter_ai.report.generator import generate_report
     path = generate_report("example.com", aggregated, ai_analysis, "report.md")
 """
 

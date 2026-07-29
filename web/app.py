@@ -9,7 +9,6 @@ import os
 import queue
 import re
 import secrets
-import sys
 import threading
 import time
 import uuid
@@ -19,16 +18,13 @@ from pathlib import Path
 
 from flask import Flask, Response, jsonify, render_template, request, send_file, session, stream_with_context
 
-# Add parent directory to path so we can import our modules
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from modules.dns_enum import run_dns_enum
-from modules.http_probe import run_http_probe
-from modules.port_scan import run_port_scan
-from modules.ssl_check import run_ssl_check
-from core.aggregator import aggregate_results
-from core.ai_analyst import run_ai_analysis
-from report.generator import generate_report
+from specter_ai.modules.dns_enum import run_dns_enum
+from specter_ai.modules.http_probe import run_http_probe
+from specter_ai.modules.port_scan import run_port_scan
+from specter_ai.modules.ssl_check import run_ssl_check
+from specter_ai.core.aggregator import aggregate_results
+from specter_ai.core.ai_analyst import run_ai_analysis
+from specter_ai.report.generator import generate_report
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
