@@ -13,12 +13,12 @@ import threading
 import time
 import uuid
 from collections import defaultdict
-from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, render_template, request, send_file, session, stream_with_context
 from werkzeug.middleware.proxy_fix import ProxyFix
 
+import db
 from specter_ai.core.pipeline import run_scan
 from specter_ai.core.validation import is_safe_target
 from specter_ai.report.generator import generate_report
@@ -29,14 +29,16 @@ app = Flask(__name__)
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
-# ── Scan state storage ────────────────────────────────────────────────────────
-# In production you'd use Redis/DB; a dict is fine for a portfolio tool
-scans = {}          # scan_id → scan result dict
-scan_queues = {}    # scan_id → queue of SSE events
-scans_lock = threading.Lock()
+db.init_db()
 
-SCANS_FILE = Path(__file__).parent / "scan_history.json"
-MAX_SCANS_IN_MEMORY = 50  # prune oldest completed scans beyond this limit
+# ── Scan state storage ────────────────────────────────────────────────────────
+# Completed/errored scan results live in SQLite (db.py) so they survive
+# restarts. Live SSE progress is inherently tied to an active browser
+# connection within this process, so it stays in-memory.
+scan_queues = {}    # scan_id → queue of SSE events
+queues_lock = threading.Lock()
+
+MAX_SCANS_STORED = 500  # prune oldest completed/error scans beyond this limit
 
 # ── Session helpers ───────────────────────────────────────────────────────────
 
@@ -72,50 +74,6 @@ VALID_TARGET_RE = re.compile(
 )
 
 
-def _prune_scans():
-    """Remove oldest completed scans from memory when limit is exceeded."""
-    with scans_lock:
-        completed = [
-            (sid, s) for sid, s in scans.items()
-            if s.get("status") in ("complete", "error")
-        ]
-        if len(scans) > MAX_SCANS_IN_MEMORY:
-            completed.sort(key=lambda x: x[1].get("finished_at", ""))
-            for sid, _ in completed[:len(scans) - MAX_SCANS_IN_MEMORY]:
-                scans.pop(sid, None)
-                scan_queues.pop(sid, None)
-
-
-def load_history():
-    if SCANS_FILE.exists():
-        try:
-            with open(SCANS_FILE) as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
-
-
-def save_history(scan_id, scan_data, session_id):
-    history = load_history()
-    # Store only serialisable summary (not full raw data)
-    history[scan_id] = {
-        "id":         scan_id,
-        "session_id": session_id,
-        "target":     scan_data.get("target"),
-        "mode":       scan_data.get("mode"),
-        "started_at": scan_data.get("started_at"),
-        "finished_at":scan_data.get("finished_at"),
-        "status":     scan_data.get("status"),
-        "risk_level": scan_data.get("risk_level", "unknown"),
-        "open_ports": scan_data.get("open_ports_count", 0),
-        "subdomains": scan_data.get("subdomains_count", 0),
-        "findings":   scan_data.get("findings_count", 0),
-    }
-    with open(SCANS_FILE, "w") as f:
-        json.dump(history, f, indent=2)
-
-
 def push_event(scan_id, event_type, data):
     """Push an SSE event to the scan's queue."""
     q = scan_queues.get(scan_id)
@@ -128,7 +86,7 @@ MODULE_PROGRESS_PCT = {"dns": 25, "ports": 50, "http": 70, "ssl": 85}
 
 def run_scan_thread(scan_id, target, mode, skip_ai, session_id):
     """Full scan pipeline running in a background thread."""
-    scans[scan_id]["status"] = "running"
+    db.mark_running(scan_id)
 
     def emit(msg, status="progress", pct=None):
         payload = {"message": msg, "status": status}
@@ -166,28 +124,21 @@ def run_scan_thread(scan_id, target, mode, skip_ai, session_id):
         report_path = report_dir / f"{scan_id}.md"
         generate_report(target, aggregated, ai_analysis, str(report_path))
 
-        # Store full result
-        scans[scan_id].update({
-            "status":           "complete",
-            "finished_at":      datetime.now(tz=timezone.utc).isoformat(),
-            "aggregated":       aggregated,
-            "ai_analysis":      ai_analysis,
-            "report_path":      str(report_path),
-            "risk_level":       ai_analysis.get("risk_level", "unknown"),
-            "open_ports_count": aggregated["ports"].get("open_count", 0),
-            "subdomains_count": len(aggregated["dns"].get("subdomains", [])),
-            "findings_count":   len(ai_analysis.get("key_findings", [])),
-        })
-        save_history(scan_id, scans[scan_id], session_id)
+        db.complete_scan(scan_id, aggregated, ai_analysis, str(report_path))
 
         emit("Scan complete!", status="complete", pct=100)
         push_event(scan_id, "complete", {"scan_id": scan_id})
 
     except Exception as e:
-        scans[scan_id]["status"] = "error"
-        scans[scan_id]["error"] = str(e)
+        db.fail_scan(scan_id, str(e))
         emit(f"Scan failed: {e}", status="error", pct=100)
         push_event(scan_id, "error", {"message": str(e)})
+
+    finally:
+        # No more events will ever be pushed to this queue once the scan
+        # is done — free it immediately rather than waiting on a count-based prune.
+        with queues_lock:
+            scan_queues.pop(scan_id, None)
 
 
 # ── Routes ────────────────────────────────────────────────────────────────────
@@ -195,10 +146,7 @@ def run_scan_thread(scan_id, target, mode, skip_ai, session_id):
 @app.route("/")
 def index():
     uid = get_session_id()
-    history = load_history()
-    # Only show scans belonging to this browser session
-    user_scans = [s for s in history.values() if s.get("session_id") == uid]
-    recent = sorted(user_scans, key=lambda x: x.get("started_at", ""), reverse=True)[:10]
+    recent = db.get_recent_scans(uid, limit=10)
     return render_template("index.html", recent_scans=recent)
 
 
@@ -227,17 +175,11 @@ def start_scan():
 
     uid = get_session_id()
     scan_id = str(uuid.uuid4())[:8]
-    with scans_lock:
+    with queues_lock:
         scan_queues[scan_id] = queue.Queue()
-        scans[scan_id] = {
-            "id":         scan_id,
-            "target":     target,
-            "mode":       mode,
-            "started_at": datetime.now(tz=timezone.utc).isoformat(),
-            "status":     "starting",
-        }
+    db.create_scan(scan_id, uid, target, mode)
+    db.prune_old_scans(MAX_SCANS_STORED)
 
-    _prune_scans()
     thread = threading.Thread(target=run_scan_thread, args=(scan_id, target, mode, skip_ai, uid), daemon=True)
     thread.start()
 
@@ -250,7 +192,16 @@ def scan_stream(scan_id):
     def generate():
         q = scan_queues.get(scan_id)
         if not q:
-            yield f"data: {json.dumps({'type': 'error', 'data': {'message': 'Scan not found'}})}\n\n"
+            # No live queue in this process — e.g. a page refresh after the
+            # scan already finished. Resolve immediately from the DB instead
+            # of leaving the client stuck on "scan not found".
+            scan = db.get_scan(scan_id)
+            if scan and scan["status"] == "complete":
+                yield f"data: {json.dumps({'type': 'complete', 'data': {'scan_id': scan_id}})}\n\n"
+            elif scan and scan["status"] == "error":
+                yield f"data: {json.dumps({'type': 'error', 'data': {'message': scan.get('error') or 'Scan failed'}})}\n\n"
+            else:
+                yield f"data: {json.dumps({'type': 'error', 'data': {'message': 'Scan not found'}})}\n\n"
             return
 
         while True:
@@ -274,13 +225,9 @@ def scan_stream(scan_id):
 
 @app.route("/scan/<scan_id>")
 def scan_result(scan_id):
-    scan = scans.get(scan_id)
+    scan = db.get_scan(scan_id)
     if not scan:
-        # Try loading from history (page refresh)
-        history = load_history()
-        if scan_id not in history:
-            return "Scan not found", 404
-        return render_template("loading.html", scan_id=scan_id)
+        return "Scan not found", 404
 
     if scan["status"] in ("starting", "running"):
         return render_template("loading.html", scan_id=scan_id)
@@ -290,7 +237,7 @@ def scan_result(scan_id):
 
 @app.route("/api/scan/<scan_id>/json")
 def scan_json(scan_id):
-    scan = scans.get(scan_id)
+    scan = db.get_scan(scan_id)
     if not scan:
         return jsonify({"error": "Not found"}), 404
     # Return serializable subset
@@ -316,7 +263,8 @@ def download_report(scan_id):
         return "Forbidden", 403
     if not report_path.exists():
         return "Report not found", 404
-    target = scans.get(scan_id, {}).get("target", scan_id)
+    scan = db.get_scan(scan_id)
+    target = scan["target"] if scan else scan_id
     filename = f"specter_{target.replace('.', '_')}_{scan_id}.md"
     return send_file(report_path, as_attachment=True, download_name=filename, mimetype="text/markdown")
 

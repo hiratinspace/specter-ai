@@ -10,6 +10,7 @@ The authors accept no liability for misuse of this tool.
 import argparse
 import sys
 import time
+from pathlib import Path
 
 from specter_ai.core.pipeline import run_scan
 from specter_ai.report.generator import generate_report
@@ -30,12 +31,21 @@ BANNER = r"""
 def parse_args():
     parser = argparse.ArgumentParser(
         description="specter-ai: Attack surface intelligence platform",
-        epilog="Example: specter-ai --target example.com --mode full --output report.md"
+        epilog=(
+            "Examples:\n"
+            "  specter-ai --target example.com --mode full --output report.md\n"
+            "  specter-ai --targets-file targets.txt --output reports/"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument(
+    target_group = parser.add_mutually_exclusive_group(required=True)
+    target_group.add_argument(
         "--target", "-t",
-        required=True,
         help="Target domain or IP (e.g. example.com)"
+    )
+    target_group.add_argument(
+        "--targets-file", "-T",
+        help="Path to a file with one target per line (blank lines and #-comments ignored)"
     )
     parser.add_argument(
         "--mode", "-m",
@@ -46,7 +56,11 @@ def parse_args():
     parser.add_argument(
         "--output", "-o",
         default=None,
-        help="Output filename for the markdown report (e.g. report.md). Default: <target>_report.md"
+        help=(
+            "Single-target mode: output filename for the markdown report "
+            "(default: <target>_report.md). Batch mode (--targets-file): "
+            "output directory for per-target reports (default: current directory)."
+        )
     )
     parser.add_argument(
         "--no-ai",
@@ -60,22 +74,31 @@ def print_status(msg, symbol="*"):
     print(f"  [{symbol}] {msg}")
 
 
-def main():
-    print(BANNER)
+def normalize_target(raw_target):
+    return raw_target.strip().lower().removeprefix("http://").removeprefix("https://").rstrip("/")
 
-    args = parse_args()
-    target = args.target.strip().lower().removeprefix("http://").removeprefix("https://").rstrip("/")
-    output_file = args.output or f"{target.replace('.', '_')}_report.md"
 
+def read_targets_file(path):
+    """Read one target per line from `path`, skipping blank lines and #-comments."""
+    targets = []
+    with open(path) as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith("#"):
+                targets.append(line)
+    return targets
+
+
+def scan_one_target(target, mode, skip_ai, output_file):
+    """Run the full scan pipeline for one target and write its report."""
     print_status(f"Target  : {target}")
-    print_status(f"Mode    : {args.mode}")
+    print_status(f"Mode    : {mode}")
     print_status(f"Output  : {output_file}")
+    if skip_ai:
+        print_status("AI analysis skipped (--no-ai flag set)", "!")
     print_status("Starting recon modules...", "→")
 
     start = time.time()
-
-    if args.no_ai:
-        print_status("AI analysis skipped (--no-ai flag set)", "!")
 
     def on_module_done(key, label, result, success):
         if success:
@@ -86,14 +109,13 @@ def main():
     print()
     aggregated, ai_analysis = run_scan(
         target,
-        args.mode,
-        skip_ai=args.no_ai,
+        mode,
+        skip_ai=skip_ai,
         on_module_done=on_module_done,
         on_ai_start=lambda: print_status("Sending findings to Claude for analysis...", "→"),
         on_ai_done=lambda _: print_status("AI analysis — done", "✓"),
     )
 
-    # ── Generate report ──────────────────────────────────────────────────────
     report_path = generate_report(target, aggregated, ai_analysis, output_file)
     elapsed = time.time() - start
 
@@ -101,6 +123,51 @@ def main():
     print_status(f"Scan complete in {elapsed:.1f}s", "✓")
     print_status(f"Report saved to: {report_path}", "✓")
     print()
+    return report_path
+
+
+def run_batch(targets_file, mode, skip_ai, output_dir):
+    raw_targets = read_targets_file(targets_file)
+    if not raw_targets:
+        print_status(f"No targets found in {targets_file}", "!")
+        sys.exit(1)
+
+    out_dir = Path(output_dir) if output_dir else Path(".")
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    print_status(f"Batch mode: {len(raw_targets)} target(s) from {targets_file}", "→")
+
+    succeeded, failed = [], []
+    for i, raw in enumerate(raw_targets, 1):
+        target = normalize_target(raw)
+        print()
+        print_status(f"[{i}/{len(raw_targets)}] {target}", "=")
+        output_file = out_dir / f"{target.replace('.', '_')}_report.md"
+        try:
+            scan_one_target(target, mode, skip_ai, str(output_file))
+            succeeded.append(target)
+        except Exception as e:
+            print_status(f"Scan failed for {target}: {e}", "✗")
+            failed.append(target)
+
+    print()
+    print_status(f"Batch complete: {len(succeeded)} succeeded, {len(failed)} failed", "!" if failed else "✓")
+    if failed:
+        print_status(f"Failed targets: {', '.join(failed)}", "✗")
+        sys.exit(1)
+
+
+def main():
+    print(BANNER)
+    args = parse_args()
+
+    if args.targets_file:
+        run_batch(args.targets_file, args.mode, args.no_ai, args.output)
+        return
+
+    target = normalize_target(args.target)
+    output_file = args.output or f"{target.replace('.', '_')}_report.md"
+    scan_one_target(target, args.mode, args.no_ai, output_file)
 
 
 def run():

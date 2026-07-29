@@ -34,6 +34,9 @@ workflow.md
 # Web dashboard generated reports and scan history
 web/reports/
 web/scan_history.json
+web/scans.db
+web/scans.db-wal
+web/scans.db-shm
 
 # ── OS / editor ───────────────────────────────────────────────────────────────
 .DS_Store

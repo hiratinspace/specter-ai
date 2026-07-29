@@ -147,37 +147,8 @@
   <div class="log" id="log"></div>
 </div>
 
+<script src="{{ url_for('static', filename='js/matrix-rain.js') }}"></script>
 <script>
-// ── Matrix rain ──────────────────────────────────────────────────────────────
-(function() {
-  const canvas = document.getElementById('matrix-rain');
-  const ctx    = canvas.getContext('2d');
-  const chars  = '01アイウエオカキクサシスタチツナニヌハヒフマミムラリル';
-  let cols, drops;
-
-  function resize() {
-    canvas.width  = window.innerWidth;
-    canvas.height = window.innerHeight;
-    cols  = Math.floor(canvas.width / 18);
-    drops = Array(cols).fill(1);
-  }
-  resize();
-  window.addEventListener('resize', resize);
-
-  setInterval(() => {
-    ctx.fillStyle = 'rgba(0,0,0,0.04)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.font = '13px Monaco, Courier New, monospace';
-    for (let i = 0; i < drops.length; i++) {
-      ctx.fillStyle = Math.random() > 0.6 ? '#8b001e' : '#cc0033';
-      const ch = chars[Math.floor(Math.random() * chars.length)];
-      ctx.fillText(ch, i * 18, drops[i] * 18);
-      if (drops[i] * 18 > canvas.height && Math.random() > 0.975) drops[i] = 0;
-      drops[i]++;
-    }
-  }, 90);
-})();
-
 // ── SSE stream ───────────────────────────────────────────────────────────────
 const scanId = "{{ scan_id }}";
 const log    = document.getElementById('log');
