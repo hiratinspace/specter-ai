@@ -10,7 +10,7 @@
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 [![Built with Claude](https://img.shields.io/badge/Built%20with-Claude%20Code-b34747)](https://claude.com/claude-code)
 
-[Live Demo](https://specter-ai-8p3g.onrender.com) · [Report a Bug](https://github.com/hiratinspace/recon-ai/issues) · [Usage](#usage)
+[Live Demo](https://specter-ai-8p3g.onrender.com) · [Report a Bug](https://github.com/hiratinspace/specter-ai/issues) · [Usage](#usage)
 
 </div>
 
