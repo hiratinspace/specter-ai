@@ -1,6 +1,8 @@
 """
 ai_analyst.py — AI-Powered Security Analysis via Claude API
-Sends aggregated recon data to Claude and gets structured findings + recommendations.
+Sends aggregated recon data to Claude and gets structured findings +
+recommendations back via tool-use (forced structured output), so responses
+are always well-formed — no free-text JSON parsing to fail.
 
 Sample usage:
     from specter_ai.core.ai_analyst import run_ai_analysis
@@ -17,53 +19,82 @@ except ImportError:
     HAS_ANTHROPIC = False
 
 
-SYSTEM_PROMPT = """You are a senior penetration tester with 15 years of experience in offensive security, 
+SYSTEM_PROMPT = """You are a senior penetration tester with 15 years of experience in offensive security,
 red team operations, and vulnerability assessment. You think like an attacker.
 
-Your job is to analyze automated recon data and provide a sharp, actionable security assessment.
-
-Your output must be structured JSON with exactly these keys:
-{
-  "executive_summary": "2-3 sentence plain-English summary of overall risk posture",
-  "risk_level": "critical | high | medium | low | informational",
-  "key_findings": [
-    {
-      "title": "Short finding title",
-      "severity": "critical | high | medium | low | info",
-      "description": "What you found and why it matters",
-      "evidence": "Specific data from the recon results that supports this finding"
-    }
-  ],
-  "attack_surface": "1-2 sentences describing the total exposed attack surface",
-  "next_steps": [
-    {
-      "step": "Short action title",
-      "priority": "immediate | high | medium",
-      "detail": "Specific, actionable instruction for a pentester to follow up",
-      "tool_suggestion": "Suggested tool or command (e.g. nmap, sqlmap, nikto, hydra)"
-    }
-  ],
-  "interesting_observations": ["Any noteworthy observations that aren't strictly findings"]
-}
+Your job is to analyze automated recon data and provide a sharp, actionable security
+assessment by calling the submit_assessment tool exactly once with your findings.
 
 Rules:
 - Be specific — reference actual ports, headers, technologies from the data
 - Don't invent findings not supported by the data
 - next_steps must be 3-5 items, ordered by priority
-- Always respond with valid JSON only — no markdown, no preamble
 """
+
+ASSESSMENT_TOOL = {
+    "name": "submit_assessment",
+    "description": "Submit a structured security assessment of the recon data.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "executive_summary": {
+                "type": "string",
+                "description": "2-3 sentence plain-English summary of overall risk posture",
+            },
+            "risk_level": {
+                "type": "string",
+                "enum": ["critical", "high", "medium", "low", "informational"],
+            },
+            "key_findings": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title":       {"type": "string", "description": "Short finding title"},
+                        "severity":    {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
+                        "description": {"type": "string", "description": "What you found and why it matters"},
+                        "evidence":    {"type": "string", "description": "Specific data from the recon results that supports this finding"},
+                    },
+                    "required": ["title", "severity", "description"],
+                },
+            },
+            "attack_surface": {
+                "type": "string",
+                "description": "1-2 sentences describing the total exposed attack surface",
+            },
+            "next_steps": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "step":            {"type": "string", "description": "Short action title"},
+                        "priority":        {"type": "string", "enum": ["immediate", "high", "medium"]},
+                        "detail":          {"type": "string", "description": "Specific, actionable instruction for a pentester to follow up"},
+                        "tool_suggestion": {"type": "string", "description": "Suggested tool or command (e.g. nmap, sqlmap, nikto, hydra)"},
+                    },
+                    "required": ["step", "priority", "detail"],
+                },
+            },
+            "interesting_observations": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Any noteworthy observations that aren't strictly findings",
+            },
+        },
+        "required": ["executive_summary", "risk_level", "key_findings", "next_steps"],
+    },
+}
 
 
 def build_analysis_prompt(data):
     """Build the user prompt with the recon data."""
-    # Trim SANs and keep only what's useful for analysis
     trimmed = json.dumps(data, indent=2, default=str)
 
     # Cap prompt size to avoid token limits
     if len(trimmed) > 15000:
         trimmed = trimmed[:15000] + "\n... [truncated for brevity]"
 
-    return f"""Analyze the following automated recon results and return your structured JSON assessment.
+    return f"""Analyze the following automated recon results and call submit_assessment with your structured assessment.
 
 TARGET: {data['meta']['target']}
 SCAN MODE: {data['meta']['scan_mode']}
@@ -74,14 +105,14 @@ RECON DATA:
 """
 
 
-def parse_ai_response(text):
-    """Extract and parse JSON from the AI response."""
-    text = text.strip()
-    # Strip markdown code fences if present
-    if text.startswith("```"):
-        lines = text.split("\n")
-        text = "\n".join(lines[1:-1]) if len(lines) > 2 else text
-    return json.loads(text)
+def _error_result(message):
+    return {
+        "error": message,
+        "executive_summary": "AI analysis unavailable.",
+        "risk_level": "unknown",
+        "key_findings": [],
+        "next_steps": [],
+    }
 
 
 def run_ai_analysis(aggregated_data):
@@ -91,32 +122,21 @@ def run_ai_analysis(aggregated_data):
     Returns dict with AI analysis, or an error dict if unavailable.
     """
     if not HAS_ANTHROPIC:
-        return {
-            "error": "anthropic library not installed — run: pip install anthropic",
-            "executive_summary": "AI analysis unavailable.",
-            "risk_level": "unknown",
-            "key_findings": [],
-            "next_steps": [],
-        }
+        return _error_result("anthropic library not installed — run: pip install anthropic")
 
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
-        return {
-            "error": "ANTHROPIC_API_KEY environment variable not set",
-            "executive_summary": "AI analysis unavailable — set ANTHROPIC_API_KEY.",
-            "risk_level": "unknown",
-            "key_findings": [],
-            "next_steps": [],
-        }
+        return _error_result("ANTHROPIC_API_KEY environment variable not set")
 
     client = anthropic.Anthropic(api_key=api_key)
 
-    raw_text = ""
     try:
         message = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=2048,
             system=SYSTEM_PROMPT,
+            tools=[ASSESSMENT_TOOL],
+            tool_choice={"type": "tool", "name": "submit_assessment"},
             messages=[
                 {
                     "role": "user",
@@ -125,25 +145,14 @@ def run_ai_analysis(aggregated_data):
             ]
         )
 
-        raw_text = message.content[0].text
-        analysis = parse_ai_response(raw_text)
-        analysis["_raw"] = raw_text  # keep raw for debugging
+        tool_use = next((b for b in message.content if b.type == "tool_use"), None)
+        if tool_use is None:
+            return _error_result("Claude did not return a structured assessment")
+
+        analysis = dict(tool_use.input)
+        analysis.setdefault("key_findings", [])
+        analysis.setdefault("next_steps", [])
         return analysis
 
-    except json.JSONDecodeError as e:
-        return {
-            "error": f"Failed to parse AI response as JSON: {e}",
-            "executive_summary": "AI response could not be parsed.",
-            "risk_level": "unknown",
-            "key_findings": [],
-            "next_steps": [],
-            "_raw": raw_text,
-        }
     except Exception as e:
-        return {
-            "error": f"AI analysis failed: {e}",
-            "executive_summary": "AI analysis encountered an error.",
-            "risk_level": "unknown",
-            "key_findings": [],
-            "next_steps": [],
-        }
+        return _error_result(f"AI analysis failed: {e}")

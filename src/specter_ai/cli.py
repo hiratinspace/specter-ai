@@ -10,14 +10,8 @@ The authors accept no liability for misuse of this tool.
 import argparse
 import sys
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from specter_ai.modules.dns_enum import run_dns_enum
-from specter_ai.modules.port_scan import run_port_scan
-from specter_ai.modules.http_probe import run_http_probe
-from specter_ai.modules.ssl_check import run_ssl_check
-from specter_ai.core.aggregator import aggregate_results
-from specter_ai.core.ai_analyst import run_ai_analysis
+from specter_ai.core.pipeline import run_scan
 from specter_ai.report.generator import generate_report
 
 BANNER = r"""
@@ -66,41 +60,6 @@ def print_status(msg, symbol="*"):
     print(f"  [{symbol}] {msg}")
 
 
-def run_modules_concurrently(target, mode):
-    """Run all recon modules in parallel using ThreadPoolExecutor."""
-    tasks = {
-        "dns":  (run_dns_enum,   (target,)),
-        "ports":(run_port_scan,  (target, mode)),
-        "http": (run_http_probe, (target,)),
-        "ssl":  (run_ssl_check,  (target,)),
-    }
-
-    results = {}
-    labels = {
-        "dns":   "DNS / WHOIS enumeration",
-        "ports": "Port scanning",
-        "http":  "HTTP header analysis",
-        "ssl":   "SSL/TLS inspection",
-    }
-
-    print()
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {
-            executor.submit(fn, *args): key
-            for key, (fn, args) in tasks.items()
-        }
-        for future in as_completed(futures):
-            key = futures[future]
-            try:
-                results[key] = future.result()
-                print_status(f"{labels[key]} — done", "✓")
-            except Exception as e:
-                results[key] = {"error": str(e)}
-                print_status(f"{labels[key]} — failed: {e}", "✗")
-
-    return results
-
-
 def main():
     print(BANNER)
 
@@ -115,22 +74,26 @@ def main():
 
     start = time.time()
 
-    # ── Phase 1: Parallel recon ──────────────────────────────────────────────
-    module_results = run_modules_concurrently(target, args.mode)
-
-    # ── Phase 2: Aggregate ───────────────────────────────────────────────────
-    aggregated = aggregate_results(target, args.mode, module_results)
-
-    # ── Phase 3: AI Analysis ─────────────────────────────────────────────────
     if args.no_ai:
         print_status("AI analysis skipped (--no-ai flag set)", "!")
-        ai_analysis = {"skipped": True, "summary": "AI analysis was skipped."}
-    else:
-        print_status("Sending findings to Claude for analysis...", "→")
-        ai_analysis = run_ai_analysis(aggregated)
-        print_status("AI analysis — done", "✓")
 
-    # ── Phase 4: Generate report ─────────────────────────────────────────────
+    def on_module_done(key, label, result, success):
+        if success:
+            print_status(f"{label} — done", "✓")
+        else:
+            print_status(f"{label} — failed: {result.get('error')}", "✗")
+
+    print()
+    aggregated, ai_analysis = run_scan(
+        target,
+        args.mode,
+        skip_ai=args.no_ai,
+        on_module_done=on_module_done,
+        on_ai_start=lambda: print_status("Sending findings to Claude for analysis...", "→"),
+        on_ai_done=lambda _: print_status("AI analysis — done", "✓"),
+    )
+
+    # ── Generate report ──────────────────────────────────────────────────────
     report_path = generate_report(target, aggregated, ai_analysis, output_file)
     elapsed = time.time() - start
 
