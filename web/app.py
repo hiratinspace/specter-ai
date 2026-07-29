@@ -9,11 +9,17 @@ import os
 import queue
 import re
 import secrets
+import sys
 import threading
 import time
 import uuid
 from collections import defaultdict
 from pathlib import Path
+
+# Ensure this directory is on sys.path so `import db` resolves to db.py next
+# to this file, regardless of whether we're launched as `python web/app.py`
+# or as the dotted module `web.app:app` (e.g. gunicorn run from repo root).
+sys.path.insert(0, str(Path(__file__).parent))
 
 from flask import Flask, Response, jsonify, render_template, request, send_file, session, stream_with_context
 from werkzeug.middleware.proxy_fix import ProxyFix
