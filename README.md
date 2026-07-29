@@ -4,11 +4,10 @@
 
 # SpecterAI
 
-**Attack Surface Intelligence Platform** — recon tool powered by Claude AI.
+**Attack Surface Intelligence Platform**: recon tool powered by Claude AI.
 
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
-[![Built with Claude](https://img.shields.io/badge/Built%20with-Claude%20Code-b34747)](https://claude.com/claude-code)
 
 [Live Demo](https://specter-ai-8p3g.onrender.com) · [Report a Bug](https://github.com/hiratinspace/specter-ai/issues) · [Usage](#usage)
 
@@ -42,7 +41,7 @@
 
 ## What it does
 
-Runs four recon modules in parallel against a target domain or IP, then sends the aggregated findings to Claude for AI-driven analysis and risk assessment. Outputs a structured Markdown report — or view it live in the web dashboard with real-time progress over SSE.
+Runs four recon modules in parallel against a target domain or IP, then sends the aggregated findings to Claude for AI-driven analysis and risk assessment. Outputs a structured Markdown report, or view it live in the web dashboard with real-time progress over SSE.
 
 | Module | What it collects |
 |---|---|
@@ -121,12 +120,12 @@ assets/screenshots/  # README screenshots
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE).
+Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ---
 
 <div align="center">
 
-Built with Python and Claude Code, by **Hirat Rahman Rahi** — first released April 8, 2026.
+Built with Python, by **Hirat Rahman Rahi**, first released April 8, 2026.
 
 </div>
