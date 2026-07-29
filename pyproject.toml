@@ -27,6 +27,7 @@ dependencies = [
 
 [project.optional-dependencies]
 web = ["flask>=3.0.0", "gunicorn>=21.2.0"]
+dev = ["pytest>=8.0", "ruff>=0.5"]
 
 [project.urls]
 Homepage = "https://github.com/hiratinspace/specter-ai"
@@ -37,3 +38,12 @@ specter-ai = "specter_ai.cli:run"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff.lint]
+# Conservative on purpose: catch real bugs (syntax errors, unused
+# imports/variables, undefined names) without demanding a full
+# stylistic rewrite (import sorting, blind-except, etc.) of existing code.
+select = ["E9", "F"]

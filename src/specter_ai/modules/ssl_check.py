@@ -40,7 +40,6 @@ def get_cert_info(hostname, port=443, timeout=8):
         with socket.create_connection((hostname, port), timeout=timeout) as sock:
             with ctx.wrap_socket(sock, server_hostname=hostname) as ssock:
                 cert = ssock.getpeercert()
-                raw_cert = ssock.getpeercert(binary_form=True)
                 cipher = ssock.cipher()
                 protocol = ssock.version()
 
