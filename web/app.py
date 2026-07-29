@@ -17,16 +17,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, render_template, request, send_file, session, stream_with_context
+from werkzeug.middleware.proxy_fix import ProxyFix
 
-from specter_ai.modules.dns_enum import run_dns_enum
-from specter_ai.modules.http_probe import run_http_probe
-from specter_ai.modules.port_scan import run_port_scan
-from specter_ai.modules.ssl_check import run_ssl_check
-from specter_ai.core.aggregator import aggregate_results
-from specter_ai.core.ai_analyst import run_ai_analysis
+from specter_ai.core.pipeline import run_scan
+from specter_ai.core.validation import is_safe_target
 from specter_ai.report.generator import generate_report
 
 app = Flask(__name__)
+# Render sits behind a reverse proxy — without this, request.remote_addr is
+# the proxy's address for every visitor, which breaks per-IP rate limiting.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.secret_key = os.environ.get("SECRET_KEY", secrets.token_hex(32))
 
 # ── Scan state storage ────────────────────────────────────────────────────────
@@ -123,6 +123,9 @@ def push_event(scan_id, event_type, data):
         q.put({"type": event_type, "data": data})
 
 
+MODULE_PROGRESS_PCT = {"dns": 25, "ports": 50, "http": 70, "ssl": 85}
+
+
 def run_scan_thread(scan_id, target, mode, skip_ai, session_id):
     """Full scan pipeline running in a background thread."""
     scans[scan_id]["status"] = "running"
@@ -133,40 +136,29 @@ def run_scan_thread(scan_id, target, mode, skip_ai, session_id):
             payload["pct"] = pct
         push_event(scan_id, "progress", payload)
 
+    def on_module_start(key, label):
+        emit(f"{label}...", pct=MODULE_PROGRESS_PCT[key] - 5)
+
+    def on_module_done(key, label, result, success):
+        pct = MODULE_PROGRESS_PCT[key]
+        if success:
+            emit(f"{label} — done ✓", status="done", pct=pct)
+        else:
+            emit(f"{label} — failed ✗ ({result.get('error')})", status="error", pct=pct)
+
     try:
         emit("Initializing scan...", pct=2)
-        module_results = {}
-        errors = {}
 
-        # Run modules with individual progress updates
-        def run_module(name, fn, args, label, pct_done):
-            emit(f"{label}...", pct=pct_done - 5)
-            try:
-                result = fn(*args)
-                module_results[name] = result
-                emit(f"{label} — done ✓", status="done", pct=pct_done)
-            except Exception as e:
-                errors[name] = str(e)
-                module_results[name] = {"error": str(e)}
-                emit(f"{label} — failed ✗ ({e})", status="error", pct=pct_done)
-
-        threads = [
-            threading.Thread(target=run_module, args=("dns",   run_dns_enum,  (target,),       "DNS / WHOIS enumeration", 25)),
-            threading.Thread(target=run_module, args=("ports", run_port_scan, (target, mode),  "Port scanning",           50)),
-            threading.Thread(target=run_module, args=("http",  run_http_probe,(target,),       "HTTP analysis",           70)),
-            threading.Thread(target=run_module, args=("ssl",   run_ssl_check, (target,),       "SSL/TLS inspection",      85)),
-        ]
-        for t in threads: t.start()
-        for t in threads: t.join()
-
-        emit("Aggregating results...", pct=88)
-        aggregated = aggregate_results(target, mode, module_results)
-
-        ai_analysis = {"skipped": True, "executive_summary": "AI analysis skipped.", "risk_level": "unknown", "key_findings": [], "next_steps": []}
-        if not skip_ai:
-            emit("Sending to Claude for AI analysis...", pct=92)
-            ai_analysis = run_ai_analysis(aggregated)
-            emit("AI analysis complete ✓", status="done", pct=97)
+        aggregated, ai_analysis = run_scan(
+            target,
+            mode,
+            skip_ai=skip_ai,
+            on_module_start=on_module_start,
+            on_module_done=on_module_done,
+            on_aggregate_start=lambda: emit("Aggregating results...", pct=88),
+            on_ai_start=lambda: emit("Sending to Claude for AI analysis...", pct=92),
+            on_ai_done=lambda _: emit("AI analysis complete ✓", status="done", pct=97),
+        )
 
         emit("Generating report...", pct=98)
         report_dir = Path(__file__).parent / "reports"
@@ -228,6 +220,10 @@ def start_scan():
         return jsonify({"error": "Invalid target — must be a valid domain or IP address"}), 400
     if mode not in ("quick", "full"):
         return jsonify({"error": "mode must be 'quick' or 'full'"}), 400
+
+    safe, _resolved_ips, safety_error = is_safe_target(target)
+    if not safe:
+        return jsonify({"error": safety_error}), 400
 
     uid = get_session_id()
     scan_id = str(uuid.uuid4())[:8]
