@@ -30,9 +30,12 @@
 ## Table of contents
 
 - [What it does](#what-it-does)
+- [How it works](#how-it-works)
+- [Features](#features)
 - [Usage](#usage)
   - [CLI](#cli)
   - [Web dashboard](#web-dashboard)
+- [Configuration](#configuration)
 - [Requirements](#requirements)
 - [Project structure](#project-structure)
 - [License](#license)
@@ -46,9 +49,34 @@ Runs four recon modules in parallel against a target domain or IP, then sends th
 | Module | What it collects |
 |---|---|
 | DNS / WHOIS | Subdomains, registrar info, DNS records |
-| Port scan | Open ports (top 20 quick / top 1000 full) |
-| HTTP probe | Headers, server info, security misconfigs |
-| SSL/TLS | Certificate details, cipher weaknesses |
+| Port scan | Open ports (top 20 quick / top 1000 full), service banners |
+| HTTP probe | Headers, server tech fingerprinting, security misconfigs |
+| SSL/TLS | Certificate details, expiry, cipher weaknesses |
+
+---
+
+## How it works
+
+```
+target ─┬─▶ DNS / WHOIS enumeration ─┐
+        ├─▶ Port scan + banner grab  ├─▶ aggregator ─▶ Claude (risk analysis) ─▶ report
+        ├─▶ HTTP header probe        │        (CLI: Markdown file · Web: live dashboard)
+        └─▶ SSL/TLS inspection ──────┘
+```
+
+The four modules run concurrently, and their results are merged into one structured summary. That summary is sent to Claude, which returns a risk level, key findings, and next steps as structured JSON, which then gets rendered into the final report.
+
+---
+
+## Features
+
+- **Four recon modules run in parallel**: DNS/WHOIS, port scanning with banner grabbing, HTTP header analysis, SSL/TLS inspection
+- **AI-driven risk assessment** via Claude: executive summary, key findings, and recommended next steps
+- **Live web dashboard** with real-time scan progress over Server-Sent Events, plus scan history per browser session
+- **CLI mode** for scripting or offline use (`--no-ai` skips the Claude call entirely)
+- **Quick or full scan modes**: top 20 ports for a fast pass, top 1000 for deeper coverage
+- **Rate limited** (5 scans per IP per minute on the web dashboard) to keep the demo usable for everyone
+- **Exportable reports**: Markdown download or raw JSON via the dashboard
 
 ---
 
@@ -86,6 +114,15 @@ Real-time scan progress via SSE, with a full report view and scan history on com
 ```bash
 python3 specter-ai.py --target scanme.nmap.org
 ```
+
+---
+
+## Configuration
+
+| Variable | Required | Description |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | For AI analysis | Claude API key. Omit and pass `--no-ai` (CLI) or disable "AI Analysis" (web) to run without it |
+| `SECRET_KEY` | Optional | Flask session signing key for the web dashboard. Falls back to a random key generated per process restart |
 
 ---
 
