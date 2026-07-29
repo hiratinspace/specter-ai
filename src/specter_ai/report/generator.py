@@ -50,8 +50,8 @@ def render_meta(target, data, ai):
     lines = [
         "# Specter AI — Attack Surface Intelligence Report",
         "",
-        f"> **DISCLAIMER:** This report was generated for authorized security testing only.",
-        f"> Unauthorized use of this tool or its findings is illegal.",
+        "> **DISCLAIMER:** This report was generated for authorized security testing only.",
+        "> Unauthorized use of this tool or its findings is illegal.",
         "",
         "| Field | Value |",
         "|-------|-------|",
@@ -87,7 +87,6 @@ def render_executive_summary(ai):
 def render_target_info(data):
     dns   = data.get("dns", {})
     whois = dns.get("whois", {})
-    ports = data.get("ports", {})
 
     lines = [_section("Target Information")]
 
