@@ -311,6 +311,36 @@ def render_ai_analysis(ai):
     return "\n".join(lines)
 
 
+def render_cve_matches(data):
+    matches = data.get("cve_matches", [])
+    if not matches:
+        return ""
+
+    lines = [_section("Known Vulnerable Versions")]
+    for m in matches:
+        port_str = f" (port {m['port']})" if m.get("port") else ""
+        cves = ", ".join(m["cves"])
+        lines.append(f"- 🟠 **{m['service']} {m['version']}**{port_str} — {cves}")
+        lines.append(f"  {m['description']}")
+
+    return "\n".join(lines)
+
+
+def render_takeover_risks(data):
+    risks = data.get("dns", {}).get("takeover_risks", [])
+    if not risks:
+        return ""
+
+    lines = [_section("Subdomain Takeover Risks")]
+    for r in risks:
+        lines.append(
+            f"- ⚠️ `{r['subdomain']}` → CNAME `{r['cname_target']}` "
+            f"({r['service']}, confidence: {r['confidence']})"
+        )
+
+    return "\n".join(lines)
+
+
 def render_risk_indicators(data):
     risks = data.get("risk_indicators", {})
     if not any(risks.values()):
@@ -327,6 +357,8 @@ def render_risk_indicators(data):
         "has_kubernetes":        ("🔴", "Kubernetes API/kubelet exposed"),
         "missing_hsts":          ("🟡", "HSTS header missing"),
         "missing_csp":           ("🟡", "Content Security Policy missing"),
+        "has_takeover_risk":     ("🔴", "Possible subdomain takeover detected"),
+        "has_cve_match":         ("🟠", "Known vulnerable service version detected"),
     }
 
     found_any = False
@@ -352,6 +384,10 @@ def generate_report(target, aggregated, ai_analysis, output_file):
         render_executive_summary(ai_analysis),
         _hr(),
         render_risk_indicators(aggregated),
+        _hr(),
+        render_cve_matches(aggregated),
+        _hr(),
+        render_takeover_risks(aggregated),
         _hr(),
         render_target_info(aggregated),
         _hr(),

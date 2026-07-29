@@ -705,11 +705,12 @@
 
   <!-- Risk Indicators -->
   {% set ri = agg.risk_indicators %}
-  {% if ri.has_rdp or ri.has_telnet or ri.has_smb or ri.has_database_port or ri.has_docker_api or ri.has_kubernetes or ri.has_ftp %}
+  {% if ri.has_rdp or ri.has_telnet or ri.has_smb or ri.has_database_port or ri.has_docker_api or ri.has_kubernetes or ri.has_ftp or ri.has_takeover_risk or ri.has_cve_match %}
   <div class="card" style="margin-top:16px">
     <div class="card-header"><span class="card-title">// Risk Indicators</span></div>
     <div class="card-body">
       <div class="tag-list">
+        {% if ri.has_takeover_risk %}<span class="risk-tag red">Subdomain Takeover Risk</span>{% endif %}
         {% if ri.has_rdp %}         <span class="risk-tag red">RDP Exposed</span>{% endif %}
         {% if ri.has_telnet %}      <span class="risk-tag red">Telnet Exposed</span>{% endif %}
         {% if ri.has_docker_api %}  <span class="risk-tag red">Docker API Exposed</span>{% endif %}
@@ -717,9 +718,53 @@
         {% if ri.has_smb %}         <span class="risk-tag orange">SMB Exposed</span>{% endif %}
         {% if ri.has_ftp %}         <span class="risk-tag orange">FTP Exposed</span>{% endif %}
         {% if ri.has_database_port %}<span class="risk-tag orange">Database Port Exposed</span>{% endif %}
+        {% if ri.has_cve_match %}   <span class="risk-tag orange">Known CVE Match</span>{% endif %}
         {% if ri.missing_hsts %}    <span class="risk-tag yellow">HSTS Missing</span>{% endif %}
         {% if ri.missing_csp %}     <span class="risk-tag yellow">CSP Missing</span>{% endif %}
       </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Known Vulnerable Versions -->
+  {% if agg.cve_matches %}
+  <div class="card" style="margin-top:16px">
+    <div class="card-header">
+      <span class="card-title">// Known Vulnerable Versions</span>
+      <span class="card-meta">{{ agg.cve_matches | length }} match(es)</span>
+    </div>
+    <div class="card-body">
+      {% for m in agg.cve_matches %}
+      <div class="finding {{ m.severity }}">
+        <div class="finding-title">
+          {{ m.service }} {{ m.version }}{% if m.port %} (port {{ m.port }}){% endif %}
+          <span class="sev-badge sev-{{ m.severity }}">{{ m.severity }}</span>
+        </div>
+        <div class="finding-desc">{{ m.description }}</div>
+        <div class="finding-evidence">// CVEs: {{ m.cves | join(', ') }}</div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Subdomain Takeover Risks -->
+  {% if agg.dns.takeover_risks %}
+  <div class="card" style="margin-top:16px">
+    <div class="card-header">
+      <span class="card-title">// Subdomain Takeover Risks</span>
+      <span class="card-meta">{{ agg.dns.takeover_risks | length }} finding(s)</span>
+    </div>
+    <div class="card-body">
+      {% for r in agg.dns.takeover_risks %}
+      <div class="finding high">
+        <div class="finding-title">
+          {{ r.subdomain }}
+          <span class="sev-badge sev-high">{{ r.confidence }}</span>
+        </div>
+        <div class="finding-desc">CNAME → <code>{{ r.cname_target }}</code> ({{ r.service }})</div>
+      </div>
+      {% endfor %}
     </div>
   </div>
   {% endif %}

@@ -8,6 +8,8 @@ Sample usage:
 
 from datetime import datetime, timezone
 
+from specter_ai.core.cve_lookup import correlate_versions
+
 
 def aggregate_results(target, mode, module_results):
     """
@@ -40,6 +42,9 @@ def aggregate_results(target, mode, module_results):
     # ── Count missing security headers ──────────────────────────────────────
     missing_headers = list(http.get("security_headers_missing", {}).keys())
 
+    # ── Known-vulnerable version correlation ─────────────────────────────────
+    cve_matches = correlate_versions(open_ports, http.get("server_headers", {}))
+
     # ── Build flat aggregated dict ───────────────────────────────────────────
     aggregated = {
         "meta": {
@@ -49,10 +54,11 @@ def aggregate_results(target, mode, module_results):
         },
 
         "dns": {
-            "ip_addresses":  dns.get("ip_addresses", []),
-            "records":       dns.get("dns_records", {}),
-            "subdomains":    dns.get("subdomains", []),
-            "whois":         dns.get("whois", {}),
+            "ip_addresses":   dns.get("ip_addresses", []),
+            "records":        dns.get("dns_records", {}),
+            "subdomains":     dns.get("subdomains", []),
+            "whois":          dns.get("whois", {}),
+            "takeover_risks": dns.get("takeover_risks", []),
         },
 
         "ports": {
@@ -93,6 +99,8 @@ def aggregate_results(target, mode, module_results):
             } if primary_cert else None,
         },
 
+        "cve_matches": cve_matches,
+
         # ── Quick-access risk summary for AI prompt ──────────────────────────
         "risk_indicators": {
             "has_rdp":               any(p["port"] == 3389 for p in open_ports),
@@ -107,6 +115,8 @@ def aggregate_results(target, mode, module_results):
             "ssl_critical_findings": sum(1 for f in ssl_findings if f.get("severity") == "critical"),
             "ssl_high_findings":     sum(1 for f in ssl_findings if f.get("severity") == "high"),
             "subdomains_found":      len(dns.get("subdomains", [])),
+            "has_takeover_risk":     len(dns.get("takeover_risks", [])) > 0,
+            "has_cve_match":         len(cve_matches) > 0,
         }
     }
 
