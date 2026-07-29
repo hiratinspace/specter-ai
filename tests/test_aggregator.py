@@ -66,3 +66,28 @@ def test_aggregate_handles_missing_module_results_gracefully():
     assert agg["ports"]["open_count"] == 0
     assert agg["dns"]["ip_addresses"] == []
     assert agg["ssl"]["primary_cert"] is None
+    assert agg["cve_matches"] == []
+    assert agg["dns"]["takeover_risks"] == []
+    assert agg["risk_indicators"]["has_cve_match"] is False
+    assert agg["risk_indicators"]["has_takeover_risk"] is False
+
+
+def test_aggregate_flags_known_vulnerable_banner():
+    module_results = make_module_results()
+    module_results["ports"]["open_ports"].append(
+        {"port": 22, "state": "open", "service": "SSH", "banner": "SSH-2.0-OpenSSH_6.6.1p1 Ubuntu"}
+    )
+    agg = aggregate_results("example.com", "quick", module_results)
+    assert any(m["service"] == "OpenSSH" for m in agg["cve_matches"])
+    assert agg["risk_indicators"]["has_cve_match"] is True
+
+
+def test_aggregate_passes_through_takeover_risks():
+    module_results = make_module_results()
+    module_results["dns"]["takeover_risks"] = [
+        {"subdomain": "blog.example.com", "service": "GitHub Pages",
+         "cname_target": "ghost.github.io", "confidence": "unclaimed_cname_target"}
+    ]
+    agg = aggregate_results("example.com", "quick", module_results)
+    assert len(agg["dns"]["takeover_risks"]) == 1
+    assert agg["risk_indicators"]["has_takeover_risk"] is True

@@ -10,6 +10,8 @@ Sample usage:
 import socket
 from datetime import datetime
 
+from specter_ai.modules.takeover_check import check_subdomain_takeover
+
 try:
     import dns.resolver
     import dns.exception
@@ -23,6 +25,12 @@ try:
 except ImportError:
     HAS_WHOIS = False
 
+try:
+    import requests
+    HAS_REQUESTS = True
+except ImportError:
+    HAS_REQUESTS = False
+
 
 RECORD_TYPES = ["A", "AAAA", "MX", "NS", "TXT", "CNAME", "SOA"]
 
@@ -31,6 +39,11 @@ COMMON_SUBDOMAINS = [
     "smtp", "secure", "vpn", "m", "shop", "ftp", "api", "dev", "staging",
     "admin", "portal", "cdn", "status", "app",
 ]
+
+CRTSH_URL = "https://crt.sh/"
+CRTSH_TIMEOUT = 8
+MAX_CT_SUBDOMAINS_TO_RESOLVE = 50
+MAX_TAKEOVER_CHECKS = 50
 
 
 def resolve_records(domain, record_type, resolver):
@@ -58,10 +71,39 @@ def enumerate_subdomains(domain, resolver):
         try:
             answers = resolver.resolve(fqdn, "A", lifetime=3)
             ips = [str(r) for r in answers]
-            found.append({"subdomain": fqdn, "ips": ips})
+            found.append({"subdomain": fqdn, "ips": ips, "source": "bruteforce"})
         except Exception:
             continue
     return found
+
+
+def query_crtsh(domain, timeout=CRTSH_TIMEOUT):
+    """
+    Query crt.sh (Certificate Transparency logs) for subdomains — passive,
+    no direct interaction with the target. Returns a sorted list of unique
+    subdomain names, or [] on any failure (rate-limited, down, no results).
+    """
+    if not HAS_REQUESTS:
+        return []
+    try:
+        resp = requests.get(
+            CRTSH_URL,
+            params={"q": f"%.{domain}", "output": "json"},
+            timeout=timeout,
+            headers={"User-Agent": "Mozilla/5.0 (specter-ai security scanner)"},
+        )
+        resp.raise_for_status()
+        entries = resp.json()
+    except Exception:
+        return []
+
+    found = set()
+    for entry in entries:
+        for name in entry.get("name_value", "").split("\n"):
+            name = name.strip().lower().lstrip("*.")
+            if name.endswith(domain) and name != domain:
+                found.add(name)
+    return sorted(found)
 
 
 def get_whois_info(domain):
@@ -95,13 +137,14 @@ def run_dns_enum(domain):
     Main entry point for DNS enumeration.
 
     Returns dict with keys:
-        dns_records, subdomains, whois, ip_addresses
+        dns_records, subdomains, whois, ip_addresses, takeover_risks
     """
     result = {
-        "dns_records":  {},
-        "subdomains":   [],
-        "whois":        {},
-        "ip_addresses": [],
+        "dns_records":    {},
+        "subdomains":     [],
+        "whois":          {},
+        "ip_addresses":   [],
+        "takeover_risks": [],
     }
 
     # ── Basic socket IP resolution (always works) ────────────────────────────
@@ -127,8 +170,26 @@ def run_dns_enum(domain):
         if records:
             result["dns_records"][rtype] = records
 
-    # ── Subdomain enumeration ────────────────────────────────────────────────
+    # ── Subdomain enumeration: brute-force + passive CT-log discovery ───────
     result["subdomains"] = enumerate_subdomains(domain, resolver)
+
+    known = {s["subdomain"] for s in result["subdomains"]}
+    ct_subdomains = [s for s in query_crtsh(domain) if s not in known]
+    result["ct_subdomains_truncated"] = len(ct_subdomains) > MAX_CT_SUBDOMAINS_TO_RESOLVE
+
+    for sub in ct_subdomains[:MAX_CT_SUBDOMAINS_TO_RESOLVE]:
+        try:
+            answers = resolver.resolve(sub, "A", lifetime=3)
+            ips = [str(r) for r in answers]
+            result["subdomains"].append({"subdomain": sub, "ips": ips, "source": "ct_log"})
+        except Exception:
+            continue
+
+    # ── Subdomain takeover check (dangling CNAME to a known cloud service) ──
+    for entry in result["subdomains"][:MAX_TAKEOVER_CHECKS]:
+        finding = check_subdomain_takeover(entry["subdomain"], resolver)
+        if finding:
+            result["takeover_risks"].append(finding)
 
     # ── WHOIS ────────────────────────────────────────────────────────────────
     result["whois"] = get_whois_info(domain)
