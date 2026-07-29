@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "specter-ai"
+version = "1.0.0"
+description = "Attack surface recon tool that runs DNS, port scanning, HTTP, and TLS analysis in parallel, then uses Claude to generate a risk-assessed pentest report."
+readme = "README.md"
+license = { file = "LICENSE" }
+authors = [{ name = "Hirat Rahman Rahi" }]
+requires-python = ">=3.10"
+keywords = ["security", "pentesting", "reconnaissance", "cybersecurity", "claude-ai"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: Apache Software License",
+    "Operating System :: OS Independent",
+    "Topic :: Security",
+    "Intended Audience :: Information Technology",
+]
+dependencies = [
+    "anthropic>=0.25.0",
+    "dnspython>=2.4.0",
+    "python-whois>=0.9.0",
+    "requests>=2.31.0",
+]
+
+[project.optional-dependencies]
+web = ["flask>=3.0.0", "gunicorn>=21.2.0"]
+
+[project.urls]
+Homepage = "https://github.com/hiratinspace/specter-ai"
+Issues = "https://github.com/hiratinspace/specter-ai/issues"
+
+[project.scripts]
+specter-ai = "specter_ai.cli:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]

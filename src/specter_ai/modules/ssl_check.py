@@ -3,7 +3,7 @@ ssl_check.py — SSL/TLS Certificate Inspector
 Checks cert validity, expiry, issuer, SANs, and protocol support.
 
 Sample usage:
-    from modules.ssl_check import run_ssl_check
+    from specter_ai.modules.ssl_check import run_ssl_check
     results = run_ssl_check("example.com")
 """
 
