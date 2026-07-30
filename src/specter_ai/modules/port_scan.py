@@ -5,6 +5,7 @@ Scans common ports using raw sockets. Grabs service banners where possible.
 Sample usage:
     from specter_ai.modules.port_scan import run_port_scan
     results = run_port_scan("example.com", mode="quick")
+    results = run_port_scan("example.com", mode="quick", pinned_ip="93.184.216.34")
 """
 
 import socket
@@ -125,14 +126,20 @@ def resolve_target(target):
         raise RuntimeError(f"Cannot resolve target '{target}': {e}")
 
 
-def run_port_scan(target, mode="quick"):
+def run_port_scan(target, mode="quick", pinned_ip=None):
     """
     Main entry point for port scanning.
+
+    `pinned_ip` (optional) is an address for `target` the caller already
+    resolved (and, on the web path, safety-checked). When supplied we scan it
+    directly instead of resolving `target` a second time, so the address that
+    was checked is the address we connect to. Without it we resolve here, which
+    is what standalone/unit-test callers do.
 
     Returns dict with keys:
         target_ip, ports_scanned, open_ports, scan_time, mode
     """
-    ip = resolve_target(target)
+    ip = pinned_ip or resolve_target(target)
     ports = TOP_20_PORTS if mode == "quick" else sorted(set(TOP_1000_PORTS))
     open_ports = []
     start = datetime.now()

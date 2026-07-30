@@ -5,8 +5,9 @@ or multicast addresses, so a public-facing scanner can't be used to probe
 internal networks or cloud metadata endpoints (e.g. 169.254.169.254).
 
 Sample usage:
-    from specter_ai.core.validation import is_safe_target
+    from specter_ai.core.validation import is_safe_target, pick_pinned_ip
     safe, resolved_ips, error = is_safe_target("example.com")
+    pinned_ip = pick_pinned_ip(resolved_ips)
 """
 
 import ipaddress
@@ -57,3 +58,18 @@ def is_safe_target(target):
         )
 
     return True, resolved_ips, None
+
+
+def pick_pinned_ip(resolved_ips):
+    """
+    Choose which of the validated addresses a scan should pin to, so every
+    module connects to the same address that was safety-checked instead of
+    re-resolving the hostname (which a low-TTL record could flip underneath us).
+
+    IPv4 is preferred because the port scanner opens AF_INET sockets.
+    Returns None if `resolved_ips` is empty.
+    """
+    for ip in resolved_ips:
+        if ":" not in ip:
+            return ip
+    return resolved_ips[0] if resolved_ips else None

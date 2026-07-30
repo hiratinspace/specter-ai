@@ -183,6 +183,15 @@ def render_http(data):
         lines.append("")
         lines.append(f"**Redirect chain:** {' → '.join(f'`{r}`' for r in redirects)}")
 
+    # Redirects the scanner refused to follow (e.g. aimed at an internal
+    # address) — a target pointing us inward is a finding in its own right.
+    blocked = http.get("blocked_redirects", [])
+    if blocked:
+        lines.append(_subsection("Redirects Not Followed"))
+        for b in blocked:
+            target_url = b.get("to") or "—"
+            lines.append(f"- `{b.get('from')}` → `{target_url}` — {b.get('reason')}")
+
     # Server headers
     server_headers = http.get("server_headers", {})
     if server_headers:

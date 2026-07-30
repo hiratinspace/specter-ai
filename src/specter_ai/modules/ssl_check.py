@@ -5,6 +5,7 @@ Checks cert validity, expiry, issuer, SANs, and protocol support.
 Sample usage:
     from specter_ai.modules.ssl_check import run_ssl_check
     results = run_ssl_check("example.com")
+    results = run_ssl_check("example.com", pinned_ip="93.184.216.34")
 """
 
 import ssl
@@ -27,17 +28,22 @@ WEAK_CIPHER_KEYWORDS = [
 EXPIRY_WARNING_DAYS = 30
 
 
-def get_cert_info(hostname, port=443, timeout=8):
+def get_cert_info(hostname, port=443, timeout=8, pinned_ip=None):
     """
     Connect via TLS and extract certificate details.
     Returns dict with certificate metadata.
+
+    `pinned_ip`, when given, is the TCP destination — it replaces a second DNS
+    lookup of `hostname`, so we hand the handshake to the address the caller
+    already validated. SNI (server_hostname) intentionally stays `hostname`:
+    only the route changes, never the TLS identity being inspected.
     """
     ctx = ssl.create_default_context()
     ctx.check_hostname = False
     ctx.verify_mode = ssl.CERT_NONE  # intentional — capture even invalid certs
 
     try:
-        with socket.create_connection((hostname, port), timeout=timeout) as sock:
+        with socket.create_connection((pinned_ip or hostname, port), timeout=timeout) as sock:
             with ctx.wrap_socket(sock, server_hostname=hostname) as ssock:
                 cert = ssock.getpeercert()
                 cipher = ssock.cipher()
@@ -106,8 +112,14 @@ def get_cert_info(hostname, port=443, timeout=8):
         return {"port": port, "error": str(e), "weak_protocol": False}
 
 
-def check_http_redirect(hostname, timeout=5):
-    """Check if plain HTTP redirects to HTTPS."""
+def check_http_redirect(hostname, timeout=5, pinned_ip=None):
+    """
+    Check if plain HTTP redirects to HTTPS.
+
+    Redirects are never followed here (only the Location header is inspected),
+    and `pinned_ip` — when given — is the connection target, with an explicit
+    Host header so the server still answers for `hostname`.
+    """
     import urllib.request
     import urllib.error
 
@@ -115,15 +127,21 @@ def check_http_redirect(hostname, timeout=5):
         def redirect_request(self, req, fp, code, msg, headers, newurl):
             return None
 
+    connect_host = pinned_ip or hostname
+    if ":" in connect_host:  # IPv6 literal
+        connect_host = f"[{connect_host}]"
+
     try:
         req = urllib.request.Request(
-            f"http://{hostname}",
-            headers={"User-Agent": "specter-ai"}
+            f"http://{connect_host}",
+            headers={"User-Agent": "specter-ai", "Host": hostname},
         )
         opener = urllib.request.build_opener(NoRedirectHandler)
         try:
-            resp = opener.open(req, timeout=timeout)
-            return {"redirects_to_https": False, "final_url": resp.geturl()}
+            opener.open(req, timeout=timeout)
+            # Redirects are disabled, so the URL we reached is the one we asked
+            # for — report it under the hostname, not the pinned address.
+            return {"redirects_to_https": False, "final_url": f"http://{hostname}"}
         except urllib.error.HTTPError as e:
             loc = e.headers.get("Location", "")
             return {"redirects_to_https": loc.startswith("https://"), "location": loc}
@@ -131,9 +149,14 @@ def check_http_redirect(hostname, timeout=5):
         return {"redirects_to_https": None, "error": "Could not check HTTP redirect"}
 
 
-def run_ssl_check(target):
+def run_ssl_check(target, pinned_ip=None):
     """
     Main entry point for SSL/TLS inspection.
+
+    `pinned_ip` (optional) is an address for `target` the caller already
+    resolved and safety-checked; passing it keeps every TLS probe on that one
+    address instead of re-resolving `target` once per port. The certificate is
+    still requested for `target` itself via SNI.
 
     Returns dict with keys:
         certificates, findings, http_redirect
@@ -146,7 +169,7 @@ def run_ssl_check(target):
 
     # ── Probe each TLS port ──────────────────────────────────────────────────
     for port in TLS_PORTS:
-        cert_info = get_cert_info(target, port)
+        cert_info = get_cert_info(target, port, pinned_ip=pinned_ip)
         if cert_info is None:
             continue  # Port closed or no TLS
 
@@ -196,7 +219,7 @@ def run_ssl_check(target):
             })
 
     # ── HTTP to HTTPS redirect check ─────────────────────────────────────────
-    results["http_redirect"] = check_http_redirect(target)
+    results["http_redirect"] = check_http_redirect(target, pinned_ip=pinned_ip)
     if results["http_redirect"].get("redirects_to_https") is False:
         results["findings"].append({
             "severity": "medium",
