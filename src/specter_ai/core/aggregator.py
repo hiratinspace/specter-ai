@@ -72,6 +72,7 @@ def aggregate_results(target, mode, module_results):
         "http": {
             "status_codes":              http.get("status_codes", {}),
             "redirects":                 http.get("redirects", []),
+            "blocked_redirects":         http.get("blocked_redirects", []),
             "server_headers":            http.get("server_headers", {}),
             "technologies":              http.get("technologies", []),
             "security_headers_present":  list(http.get("security_headers_present", {}).keys()),
@@ -117,6 +118,7 @@ def aggregate_results(target, mode, module_results):
             "subdomains_found":      len(dns.get("subdomains", [])),
             "has_takeover_risk":     len(dns.get("takeover_risks", [])) > 0,
             "has_cve_match":         len(cve_matches) > 0,
+            "has_blocked_redirect":  len(http.get("blocked_redirects", [])) > 0,
         }
     }
 

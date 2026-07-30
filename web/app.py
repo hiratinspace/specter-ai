@@ -26,7 +26,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 import db
 from specter_ai.core.pipeline import run_scan
-from specter_ai.core.validation import is_safe_target
+from specter_ai.core.validation import is_safe_target, pick_pinned_ip
 from specter_ai.report.generator import generate_report
 
 app = Flask(__name__)
@@ -90,8 +90,15 @@ def push_event(scan_id, event_type, data):
 MODULE_PROGRESS_PCT = {"dns": 25, "ports": 50, "http": 70, "ssl": 85}
 
 
-def run_scan_thread(scan_id, target, mode, skip_ai, session_id):
-    """Full scan pipeline running in a background thread."""
+def run_scan_thread(scan_id, target, mode, skip_ai, session_id, pinned_ip=None):
+    """
+    Full scan pipeline running in a background thread.
+
+    `pinned_ip` is the address is_safe_target() approved in the request handler.
+    Passing it down means the modules connect to exactly that address instead of
+    resolving `target` again seconds later, which a low-TTL DNS record could
+    otherwise answer with an internal address (DNS rebinding).
+    """
     db.mark_running(scan_id)
 
     def emit(msg, status="progress", pct=None):
@@ -117,6 +124,7 @@ def run_scan_thread(scan_id, target, mode, skip_ai, session_id):
             target,
             mode,
             skip_ai=skip_ai,
+            pinned_ip=pinned_ip,
             on_module_start=on_module_start,
             on_module_done=on_module_done,
             on_aggregate_start=lambda: emit("Aggregating results...", pct=88),
@@ -175,9 +183,13 @@ def start_scan():
     if mode not in ("quick", "full"):
         return jsonify({"error": "mode must be 'quick' or 'full'"}), 400
 
-    safe, _resolved_ips, safety_error = is_safe_target(target)
+    safe, resolved_ips, safety_error = is_safe_target(target)
     if not safe:
         return jsonify({"error": safety_error}), 400
+
+    # Pin the address we just validated for the whole scan, so the background
+    # thread can't be handed a different (internal) address by a second lookup.
+    pinned_ip = pick_pinned_ip(resolved_ips)
 
     uid = get_session_id()
     scan_id = str(uuid.uuid4())[:8]
@@ -186,7 +198,11 @@ def start_scan():
     db.create_scan(scan_id, uid, target, mode)
     db.prune_old_scans(MAX_SCANS_STORED)
 
-    thread = threading.Thread(target=run_scan_thread, args=(scan_id, target, mode, skip_ai, uid), daemon=True)
+    thread = threading.Thread(
+        target=run_scan_thread,
+        args=(scan_id, target, mode, skip_ai, uid, pinned_ip),
+        daemon=True,
+    )
     thread.start()
 
     return jsonify({"scan_id": scan_id})

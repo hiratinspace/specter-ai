@@ -605,6 +605,24 @@
         </div>
       </div>
 
+      {% if agg.http.blocked_redirects %}
+      <div class="card" style="margin-bottom:0">
+        <div class="card-header">
+          <span class="card-title">// Redirects Not Followed</span>
+          <span class="card-meta">{{ agg.http.blocked_redirects | length }} blocked</span>
+        </div>
+        <div class="card-body">
+          {% for b in agg.http.blocked_redirects %}
+          <div class="finding high">
+            <div class="finding-title">Blocked redirect<span class="sev-badge sev-high">high</span></div>
+            <div class="finding-desc"><code>{{ b.from }}</code> → <code>{{ b.to }}</code></div>
+            <div class="finding-evidence">// {{ b.reason }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
       <div class="card" style="margin-bottom:0">
         <div class="card-header"><span class="card-title">// Security Headers</span></div>
         <div class="card-body" style="padding:12px 18px">
@@ -705,11 +723,12 @@
 
   <!-- Risk Indicators -->
   {% set ri = agg.risk_indicators %}
-  {% if ri.has_rdp or ri.has_telnet or ri.has_smb or ri.has_database_port or ri.has_docker_api or ri.has_kubernetes or ri.has_ftp or ri.has_takeover_risk or ri.has_cve_match %}
+  {% if ri.has_rdp or ri.has_telnet or ri.has_smb or ri.has_database_port or ri.has_docker_api or ri.has_kubernetes or ri.has_ftp or ri.has_takeover_risk or ri.has_cve_match or ri.has_blocked_redirect %}
   <div class="card" style="margin-top:16px">
     <div class="card-header"><span class="card-title">// Risk Indicators</span></div>
     <div class="card-body">
       <div class="tag-list">
+        {% if ri.has_blocked_redirect %}<span class="risk-tag red">Internal Redirect Blocked</span>{% endif %}
         {% if ri.has_takeover_risk %}<span class="risk-tag red">Subdomain Takeover Risk</span>{% endif %}
         {% if ri.has_rdp %}         <span class="risk-tag red">RDP Exposed</span>{% endif %}
         {% if ri.has_telnet %}      <span class="risk-tag red">Telnet Exposed</span>{% endif %}
