@@ -9,7 +9,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/Python-3.10%2B-blue)](https://www.python.org/)
 
-[Live Demo](https://specter-ai-8p3g.onrender.com) · [Report a Bug](https://github.com/hiratinspace/specter-ai/issues) · [Usage](#usage)
+[Live Demo](hiratinspace.github.io/specter-ai/) · [Report a Bug](https://github.com/hiratinspace/specter-ai/issues) · [Usage](#usage)
 
 </div>
 
